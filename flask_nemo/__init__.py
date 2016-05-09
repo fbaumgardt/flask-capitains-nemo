@@ -170,7 +170,7 @@ class Nemo(object):
             self._urls = Nemo.ROUTES
 
         # Adding instance information
-        self._urls = [tuple(url + [None]) for url in self._urls]
+        self._urls = [tuple(list(url) + [None]) for url in self._urls]
 
         self._filters = copy(Nemo.FILTERS)
 
@@ -619,10 +619,10 @@ class Nemo(object):
             static_url_path=self.static_url_path
         )
 
-        for url, name, methods in self._urls:
+        for url, name, methods, instance in self._urls:
             self.blueprint.add_url_rule(
                 url,
-                view_func=self.view_maker(name),
+                view_func=self.view_maker(name, instance),
                 endpoint=name,
                 methods=methods
             )
