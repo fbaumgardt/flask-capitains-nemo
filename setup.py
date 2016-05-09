@@ -17,7 +17,7 @@ setup(
     ],
     tests_require=[
         "mock==1.0.1",
-        "capitains_nautilus>=0.0.3"
+        "capitains_nautilus>=0.0.4"
     ],
     entry_points={
         'console_scripts': ['capitains-nemo=flask_nemo:cmd'],

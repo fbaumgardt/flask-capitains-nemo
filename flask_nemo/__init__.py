@@ -41,7 +41,9 @@ class Nemo(object):
     :param cache: SQLITE cache file name
     :type base_url: str
     :param expire: TIme before expiration of cache, default 3600
-    :type exipre: int
+    :type expire: int
+    :param plugins: List of plugins to connect to the Nemo instance
+    :type plugins: list(flask_nemo.plugin.PluginPrototype)
     :param template_folder: Folder in which the templates can be found
     :type template_folder: str
     :param static_folder: Folder in which statics file can be found
@@ -109,15 +111,20 @@ class Nemo(object):
     ]
 
     def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", cache=None, expire=3600,
+                 plugins=None,
                  template_folder=None, static_folder=None, static_url_path=None,
                  urls=None, inventory=None, transform=None, urntransform=None, chunker=None, prevnext=None,
                  css=None, js=None, templates=None, statics=None):
-        __doc__ = Nemo.__doc__
+
         self.name = __name__
         if name:
             self.name = name
         self.prefix = base_url
         self.api_url = api_url
+
+        self.__plugins__ = plugins
+        if not plugins:
+            self.__plugins__ = []
 
         if isinstance(retriever, CtsProtoRetriever):
             self.retriever = retriever
@@ -162,11 +169,15 @@ class Nemo(object):
         else:
             self._urls = Nemo.ROUTES
 
+        # Adding instance information
+        self._urls = [tuple(url + [None]) for url in self._urls]
+
         self._filters = copy(Nemo.FILTERS)
+
         # Reusing self._inventory across requests
         self._inventory = None
         self.__transform = {
-            "default" : None
+            "default": None
         }
 
         self.__urntransform = {
@@ -179,12 +190,12 @@ class Nemo(object):
         if isinstance(urntransform, dict):
             self.__urntransform.update(urntransform)
 
-        self.chunker = {}
+        self.chunker = dict()
         self.chunker["default"] = Nemo.default_chunker
         if isinstance(chunker, dict):
             self.chunker.update(chunker)
 
-        self.prevnext = {}
+        self.prevnext = dict()
         self.prevnext["default"] = Nemo.default_prevnext
         if isinstance(prevnext, dict):
             self.prevnext.update(prevnext)
@@ -206,6 +217,8 @@ class Nemo(object):
             "css": OrderedDict(),
             "static": OrderedDict()
         }
+
+        self.__plugins_render_views__ = []
 
     def __register_cache(self, sqlite_path, expire):
         """ Set up a request cache
@@ -616,7 +629,7 @@ class Nemo(object):
 
         self.register_assets()
 
-        # If we have added or overriden the default templates
+        # If we have added or overridden the default templates
         if self.templates != Nemo.TEMPLATES:
             folders = set([op.dirname(path) for path in self.templates if path != self.template_folder])
             self.loader = jinja2.ChoiceLoader([
@@ -629,7 +642,7 @@ class Nemo(object):
 
         return self.blueprint
 
-    def view_maker(self, name):
+    def view_maker(self, name, instance=None):
         """ Create a view
 
         :param name: Name of the route function to use for the view.
@@ -637,7 +650,10 @@ class Nemo(object):
         :return: Route function which makes use of Nemo context (such as menu informations)
         :rtype: function
         """
-        return lambda **kwargs: self.route(getattr(self, name), **kwargs)
+        if instance:
+            return lambda **kwargs: self.route(getattr(instance, name), **kwargs)
+        else:
+            return lambda **kwargs: self.route(getattr(self, name), **kwargs)
 
     def render(self, template, **kwargs):
         """ Render a route template and adds information to this route.
@@ -661,9 +677,13 @@ class Nemo(object):
         kwargs["assets"] = self.assets
         kwargs["templates"] = self.templates
         kwargs["breadcrumbs"] = self.make_breadcrumbs(**kwargs)
+
+        for plugin in self.__plugins_render_views__:
+            kwargs = plugin.render(kwargs)
+
         return render_template(template, **kwargs)
 
-    def make_breadcrumbs(self,**kwargs):
+    def make_breadcrumbs(self, **kwargs):
         """ Make breadcrumbs for a route
 
         :param kwargs: dictionary of named arguments used to construct the view
@@ -677,7 +697,13 @@ class Nemo(object):
         # setting a route name to None means that it's needed to construct the route of the next item in the list
         # but shouldn't be included in the list itself (this is currently the case for work -- 
         # at some point we probably should include work in the navigation)
-        crumbtypes = [["collection",".r_collection"],["textgroup",".r_texts"],["work",None],["version",".r_version"],["passage_identifier",".r_passage"]]
+        crumbtypes = [
+            ["collection", ".r_collection"],
+            ["textgroup", ".r_texts"],
+            ["work", None],
+            ["version", ".r_version"],
+            ["passage_identifier", ".r_passage"]
+        ]
         for idx,crumb_type in enumerate(crumbtypes) :
             if kwargs["url"] and crumb_type[0] in kwargs["url"]:
                 crumb = {}
@@ -685,9 +711,9 @@ class Nemo(object):
                 # in the future, having a common display_name property on the model would be helpful to avoid
                 # this logic here
                 if crumb_type[0] == "textgroup":
-                   # get the groupname of the current textgroup
-                   item = list(filter(lambda textgroup: textgroup.urn.textgroup == kwargs["url"]["textgroup"], kwargs["textgroups"]))
-                   crumb["title"] = item[0].metadata["groupname"][kwargs["lang"]]
+                    # get the groupname of the current textgroup
+                    item = list(filter(lambda textgroup: textgroup.urn.textgroup == kwargs["url"]["textgroup"], kwargs["textgroups"]))
+                    crumb["title"] = item[0].metadata["groupname"][kwargs["lang"]]
                 elif crumb_type[0] == "version":
                     # get the label of the current version
                     crumb["title"] = kwargs["version"].metadata["label"][kwargs["lang"]]
@@ -699,18 +725,18 @@ class Nemo(object):
                 crumb_args = {}
                 iteridx = idx
                 while iteridx >= 0:
-                     crumb_args[crumbtypes[iteridx][0]] = kwargs["url"][crumbtypes[iteridx][0]]
-                     iteridx = iteridx - 1
+                    crumb_args[crumbtypes[iteridx][0]] = kwargs["url"][crumbtypes[iteridx][0]]
+                    iteridx = iteridx - 1
+
                 crumb["link"] = crumb_type[1]
                 crumb["args"] = crumb_args
                 # skip items in the trail that are only used to construct others
-                if crumb_type[1] != None:
+                if crumb_type[1]:
                     breadcrumbs.append(crumb)
         # don't link the last item in the trail
         if len(breadcrumbs) > 0:
             breadcrumbs[-1]["link"] = None
         return breadcrumbs
-
 
     def route(self, fn, **kwargs):
         """ Route helper : apply fn function but keep the calling object, *ie* kwargs, for other functions
@@ -748,6 +774,16 @@ class Nemo(object):
             self.app.jinja_env.filters[
                 _filter.replace("f_", "")
             ] = getattr(self.__class__, _filter)
+
+    def register_plugins(self):
+        """ Register plugins in Nemo instance
+        """
+        for plugin in self.__plugins__:
+            self._urls.extend([tuple(route + [plugin]) for route in plugin.routes])
+            self._filters.extend(plugin.filters)
+            self.templates.update(plugin.templates)
+            if plugin.augment:
+                self.__plugins_render_views__.append(plugin)
 
     def chunk(self, text, reffs):
         """ Handle a list of references depending on the text identifier using the chunker dictionary.
