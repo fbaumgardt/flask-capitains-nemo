@@ -20,8 +20,6 @@ class NemoTestRoutes(TestCase):
             retriever=NautilusDummy,
             chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)}
         )
-        nemo.register_routes()
-        nemo.register_filters()
 
         self.client = app.test_client()
 

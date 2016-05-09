@@ -122,10 +122,6 @@ class Nemo(object):
         self.prefix = base_url
         self.api_url = api_url
 
-        self.__plugins__ = plugins
-        if not plugins:
-            self.__plugins__ = []
-
         if isinstance(retriever, CtsProtoRetriever):
             self.retriever = retriever
         else:
@@ -137,7 +133,6 @@ class Nemo(object):
 
         if app is not None:
             self.app = app
-            self.init_app(self.app)
         else:
             self.app = None
 
@@ -173,6 +168,7 @@ class Nemo(object):
         self._urls = [tuple(list(url) + [None]) for url in self._urls]
 
         self._filters = copy(Nemo.FILTERS)
+        self._filters = [tuple([filt] + [None]) for filt in self._filters]
 
         # Reusing self._inventory across requests
         self._inventory = None
@@ -219,33 +215,28 @@ class Nemo(object):
         }
 
         self.__plugins_render_views__ = []
+        self.__plugins__ = plugins
+        if not plugins:
+            self.__plugins__ = []
 
-    def __register_cache(self, sqlite_path, expire):
-        """ Set up a request cache
+        if app:
+            self.init_app(self.app)
 
-        :param sqlite_path: Set up a sqlite cache system
-        :type sqlite_path: str
-        :param expire: Time for the cache to expire
-        :type expire: int
-        """
-        self.cache = requests_cache.install_cache(
-            sqlite_path,
-            backend="sqlite",
-            expire_after=expire
-        )
-
-    def init_app(self, app):
+    def init_app(self, app=None):
         """ Initiate the application
 
         :param app: Flask application on which to add the extension
         :type app: flask.Flask
         """
+        # Legacy code
         if "CTS_API_URL" in app.config:
             self.api_url = app.config['CTS_API_URL']
         if "CTS_API_INVENTORY" in app.config:
             self.api_inventory = app.config['CTS_API_INVENTORY']
-        if self.app is None:
+        if app:
             self.app = app
+
+        self.register()
 
     def transform(self, work, xml):
         """ Transform input according to potentiallyregistered XSLT
@@ -610,6 +601,8 @@ class Nemo(object):
         :return: Blueprint of the current nemo app
         :rtype: flask.Blueprint
         """
+        self.register_plugins()
+
         self.blueprint = Blueprint(
             self.name,
             "nemo",
@@ -628,6 +621,7 @@ class Nemo(object):
             )
 
         self.register_assets()
+        self.register_filters()
 
         # If we have added or overridden the default templates
         if self.templates != Nemo.TEMPLATES:
@@ -704,7 +698,7 @@ class Nemo(object):
             ["version", ".r_version"],
             ["passage_identifier", ".r_passage"]
         ]
-        for idx,crumb_type in enumerate(crumbtypes) :
+        for idx, crumb_type in enumerate(crumbtypes) :
             if kwargs["url"] and crumb_type[0] in kwargs["url"]:
                 crumb = {}
                 # what we want to display as the crumb title depends upon what it is
@@ -752,8 +746,8 @@ class Nemo(object):
         new_kwargs["url"] = kwargs
         return self.render(**new_kwargs)
 
-    def register_routes(self):
-        """ Register routes on app using Blueprint
+    def register(self):
+        """ Register the app using Blueprint
 
         :return: Nemo blueprint
         :rtype: flask.Blueprint
@@ -770,17 +764,22 @@ class Nemo(object):
 
        .. note::  Extends the dictionary filters of jinja_env using self._filters list
         """
-        for _filter in self._filters:
-            self.app.jinja_env.filters[
-                _filter.replace("f_", "")
-            ] = getattr(self.__class__, _filter)
+        for _filter, instance in self._filters:
+            if not instance:
+                self.app.jinja_env.filters[
+                    _filter.replace("f_", "")
+                ] = getattr(self.__class__, _filter)
+            else:
+                self.app.jinja_env.filters[
+                    _filter.replace("f_", "")
+                ] = getattr(instance, _filter.replace("_{}".format(instance.name), ""))
 
     def register_plugins(self):
         """ Register plugins in Nemo instance
         """
         for plugin in self.__plugins__:
             self._urls.extend([tuple(route + [plugin]) for route in plugin.routes])
-            self._filters.extend(plugin.filters)
+            self._filters.extend([(filt, plugin) for filt in plugin.filters])
             self.templates.update(plugin.templates)
             if plugin.augment:
                 self.__plugins_render_views__.append(plugin)
@@ -1229,14 +1228,10 @@ def cmd():
             name="nemo",
             base_url="",
             css=args.css,
-            inventory = args.inventory,
+            inventory=args.inventory,
             api_url=args.endpoint,
             chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=args.groupby)}
         )
-        # We register its routes
-        nemo.register_routes()
-        # We register its filters
-        nemo.register_filters()
 
         # We run the app
         app.debug = args.debug

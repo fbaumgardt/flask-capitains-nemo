@@ -325,7 +325,7 @@ class NemoTestRoutes(NemoResource):
     def test_register_route(self):
         app = Flask(__name__)
         nemo = Nemo(app=app, base_url="/perseus")
-        nemo.register_routes()
+        nemo.register()
         self.assertIn("flask_nemo", app.blueprints)
 
         rules = [(rule.rule, rule.endpoint) for rule in app.url_map.iter_rules()]
@@ -334,7 +334,7 @@ class NemoTestRoutes(NemoResource):
 
         app = Flask(__name__)
         nemo = Nemo("nemo", app=app)
-        nemo.register_routes()
+        nemo.register()
         self.assertIn("nemo", app.blueprints)
 
         rules = [(rule.rule, rule.endpoint) for rule in app.url_map.iter_rules()]
@@ -342,7 +342,7 @@ class NemoTestRoutes(NemoResource):
         self.assertIn("nemo.r_passage", [rule[1] for rule in rules])
 
         nemo = Nemo()
-        self.assertEqual(nemo.register_routes(), None)
+        self.assertEqual(nemo.register(), None)
 
     def test_additional_template(self):
         # Line 568-575

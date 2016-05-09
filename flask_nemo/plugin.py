@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
+from copy import copy
 
 class PluginPrototype(object):
     """ Prototype for Nemo Plugins
 
     :param name: Name of the instance of the plugins. Defaults to the class name
     :param nemo: Instance of Nemo
-    :param namespacing&: Automatically overwrites the route
+    :param namespacing: Automatically overwrites the route
 
     :cvar ROUTES: Routes represents the routes to be added to the Nemo instance. They take the form of a 3-tuple such as `("/read/<collection>", "r_collection", ["GET"])`
     :type ROUTES: list
@@ -45,16 +46,19 @@ class PluginPrototype(object):
         if not name:
             self.__instance_name__ = type(self).__name__
 
-        self.__routes__ = type(self).ROUTES
-        self.__filters__ = type(self).FILTERS
-        self.__templates__ = type(self).TEMPLATES
-        self.__augment__ = type(self).HAS_AUGMENT_RENDER
+        self.__routes__ = copy(type(self).ROUTES)
+        self.__filters__ = copy(type(self).FILTERS)
+        self.__templates__ = copy(type(self).TEMPLATES)
+        self.__augment__ = copy(type(self).HAS_AUGMENT_RENDER)
 
         if namespacing:
             for i in range(0, len(self.__routes__)):
                 self.__routes__[i] = tuple(
                     ["/{0}{1}".format(self.name, self.__routes__[i][0])] + self.__routes__[i][1:]
                 )
+
+            for i in range(0, len(self.__filters__)):
+                self.__filters__[i] = "f_{}_{}".format(self.name, self.__filters__[i][2:])
 
         if nemo:
             self.register_nemo(nemo)
