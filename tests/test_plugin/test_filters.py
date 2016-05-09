@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_nemo import Nemo
 from flask_nemo.plugin import PluginPrototype
-from .resources import NemoResource, RequestPatch, RequestPatchChained, create_test_app
+from tests.resources import NemoResource, RequestPatch, RequestPatchChained, create_test_app
 
 
 class FilterPlugin(PluginPrototype):
