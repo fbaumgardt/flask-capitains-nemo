@@ -616,7 +616,7 @@ class Nemo(object):
             self.blueprint.add_url_rule(
                 url,
                 view_func=self.view_maker(name, instance),
-                endpoint=name,
+                endpoint=_plugin_endpoint_rename(name, instance),
                 methods=methods
             )
 
@@ -625,13 +625,12 @@ class Nemo(object):
 
         # If we have added or overridden the default templates
         if self.templates != Nemo.TEMPLATES:
-            folders = set([op.dirname(path) for path in self.templates if path != self.template_folder])
+            folders = set([op.dirname(op.abspath(path)) for path in self.templates.values()])
             self.loader = jinja2.ChoiceLoader([
-                    self.blueprint.jinja_loader
-                ] + [
-                    jinja2.FileSystemLoader(folder) for folder in folders
-                ]
-            )
+                self.blueprint.jinja_loader
+            ] + [
+                jinja2.FileSystemLoader(folder) for folder in folders
+            ])
             self.blueprint.jinja_loader = self.loader
 
         return self.blueprint
@@ -778,11 +777,12 @@ class Nemo(object):
         """ Register plugins in Nemo instance
         """
         for plugin in self.__plugins__:
-            self._urls.extend([tuple(route + [plugin]) for route in plugin.routes])
+            self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
             self.templates.update(plugin.templates)
             if plugin.augment:
                 self.__plugins_render_views__.append(plugin)
+            plugin.register_nemo(self)
 
     def chunk(self, text, reffs):
         """ Handle a list of references depending on the text identifier using the chunker dictionary.
@@ -1197,6 +1197,18 @@ def _join_or_single(start, end):
             start,
             end
         )
+
+
+def _plugin_endpoint_rename(fn_name, instance):
+    """ Rename endpoint function name to avoid conflict when namespacing is set to true
+
+    :param fn_name:
+    :param instance:
+    :return:
+    """
+    if instance and instance.namespaced:
+        fn_name = "r_{0}_{1}".format(instance.name, fn_name[2:])
+    return fn_name
 
 
 def cmd():

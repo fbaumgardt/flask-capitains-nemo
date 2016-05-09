@@ -60,4 +60,6 @@ class NemoResource(unittest.TestCase):
             api_url=NemoResource.endpoint
         )
 
-NautilusDummy = NautilusRetriever(folders=["./tests/test_data/nautilus/farsiLit", "./tests/test_data/nautilus/latinLit"])
+NautilusDummy = NautilusRetriever(folders=[
+    "./tests/test_data/nautilus/farsiLit", "./tests/test_data/nautilus/latinLit"]
+)

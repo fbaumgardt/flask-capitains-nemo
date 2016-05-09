@@ -2,6 +2,7 @@
 
 from copy import copy
 
+
 class PluginPrototype(object):
     """ Prototype for Nemo Plugins
 
@@ -22,6 +23,8 @@ class PluginPrototype(object):
     :ivar routes: Instance-specific list of routes
     :ivar filters: Instance-specific list of filters
     :ivar augment: Instance-specific status of presence of post-processing function (General view information)
+    :ivar nemo: Nemo instance
+    :type nemo: flask_nemo.Nemo
 
     :Example:
     .. code-block:: python
@@ -50,11 +53,12 @@ class PluginPrototype(object):
         self.__filters__ = copy(type(self).FILTERS)
         self.__templates__ = copy(type(self).TEMPLATES)
         self.__augment__ = copy(type(self).HAS_AUGMENT_RENDER)
+        self.__namespaced__ = namespacing
 
         if namespacing:
             for i in range(0, len(self.__routes__)):
                 self.__routes__[i] = tuple(
-                    ["/{0}{1}".format(self.name, self.__routes__[i][0])] + self.__routes__[i][1:]
+                    ["/{0}{1}".format(self.name, self.__routes__[i][0])] + list(self.__routes__[i])[1:]
                 )
 
             for i in range(0, len(self.__filters__)):
@@ -79,6 +83,10 @@ class PluginPrototype(object):
         return self.__instance_name__
 
     @property
+    def namespaced(self):
+        return self.__namespaced__
+
+    @property
     def routes(self):
         return self.__routes__
 
@@ -89,6 +97,10 @@ class PluginPrototype(object):
     @property
     def templates(self):
         return self.__templates__
+
+    @property
+    def nemo(self):
+        return self.__nemo__
 
     def render(self, kwargs):
         """ View Rendering function that gets triggered before nemo renders the resources and adds informations to \
