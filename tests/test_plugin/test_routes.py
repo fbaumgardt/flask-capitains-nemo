@@ -3,6 +3,8 @@ from unittest import TestCase
 from flask_nemo import Nemo
 from flask_nemo.plugin import PluginPrototype
 from tests.resources import NautilusDummy
+from copy import copy
+import werkzeug.routing
 
 
 class PluginRoute(PluginPrototype):
@@ -11,7 +13,7 @@ class PluginRoute(PluginPrototype):
     ]
 
     TEMPLATES = {
-        "r_double": "examples/translations/r_double.html"
+        "r_double": "tests/test_data/r_double.html"
     }
 
     def r_double(self, collection, textgroup, work, version, passage_identifier, visavis):
@@ -30,7 +32,7 @@ class PluginClearRoute(PluginRoute):
     CLEAR = True
 
     TEMPLATES = {
-        "r_double": "tests/test_data/r_double.html"
+        "r_double": "tests/test_data/r_double_no_extend.html"
     }
 
 
@@ -95,3 +97,29 @@ class TestPluginRoutes(TestCase):
             'Finstere Schatten der Nacht!', query_data,
             "German text should be displayed"
         )
+
+    def test_plugin_clear_with_error(self):
+        """
+            When clearing routes, we need to ensure Flask fails to run
+            if there is still some other routes call
+        """
+        class TempPlugin(PluginClearRoute):
+            TEMPLATES = copy(PluginRoute.TEMPLATES)
+
+        app = Flask("Nemo")
+        app.debug = True
+        plugin = TempPlugin(name="normal")
+        nemo = Nemo(
+            app=app,
+            base_url="",
+            retriever=NautilusDummy,
+            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            plugins=[plugin]
+        )
+
+        client = app.test_client()
+        with self.assertRaises(
+                werkzeug.routing.BuildError,
+                msg="Call to other routes in templates should fail to build"
+        ):
+            client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1")
