@@ -34,7 +34,7 @@ class PluginRoute(PluginPrototype):
 
 
 class PluginClearRoute(PluginRoute):
-    CLEAR = True
+    CLEAR_ROUTES = True
 
     TEMPLATES = {
         "r_double": "tests/test_data/r_double_no_extend.html"

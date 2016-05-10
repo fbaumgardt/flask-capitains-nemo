@@ -43,7 +43,8 @@ class PluginPrototype(object):
     TEMPLATES = {}
     FILTERS = []
     HAS_AUGMENT_RENDER = False
-    CLEAR = False
+    CLEAR_ROUTES = False
+    CLEAR_ASSETS = False
 
     def __init__(self, name=None, nemo=None, namespacing=False, *args, **kwargs):
         self.__nemo__ = None
@@ -51,7 +52,8 @@ class PluginPrototype(object):
         if not name:
             self.__instance_name__ = type(self).__name__
 
-        self.__clear__ = copy(type(self).CLEAR)
+        self.__clear_routes__ = copy(type(self).CLEAR_ROUTES)
+        self.__clear_assets__ = copy(type(self).CLEAR_ASSETS)
         self.__routes__ = copy(type(self).ROUTES)
         self.__filters__ = copy(type(self).FILTERS)
         self.__templates__ = copy(type(self).TEMPLATES)
@@ -82,8 +84,12 @@ class PluginPrototype(object):
         return self.__augment__
 
     @property
-    def clear(self):
-        return self.__clear__
+    def clear_routes(self):
+        return self.__clear_routes__
+
+    @property
+    def clear_assets(self):
+        return self.__clear_assets__
 
     @property
     def name(self):

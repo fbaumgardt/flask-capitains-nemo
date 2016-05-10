@@ -111,6 +111,13 @@ class Nemo(object):
         "f_i18n_citation_type",
         "f_order_author"
     ]
+    """ Assets dictionary model
+    """
+    ASSETS = {
+        "js": OrderedDict(),
+        "css": OrderedDict(),
+        "static": OrderedDict()
+    }
 
     def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", cache=None, expire=3600,
                  plugins=None,
@@ -198,23 +205,26 @@ class Nemo(object):
         if isinstance(prevnext, dict):
             self.prevnext.update(prevnext)
 
-        self.css = []
+        # Setting up assets
+        self.__assets__ = copy(type(self).ASSETS)
         if isinstance(css, list):
-            self.css = css
-
-        self.js = []
+            for css_s in css:
+                if css_s.startswith("//") or css_s.startswith("http"):
+                    self.__assets__["css"][css_s] = None
+                else:
+                    directory, filename = op.split(css_s)
+                    self.__assets__["css"][filename] = directory
         if isinstance(js, list):
-            self.js = js
-
-        self.statics = []
+            for javascript in js:
+                if javascript.startswith("//") or javascript.startswith("http"):
+                    self.__assets__["js"][javascript] = None
+                else:
+                    directory, filename = op.split(javascript)
+                    self.__assets__["js"][filename] = directory
         if isinstance(statics, list):
-            self.statics = statics
-
-        self.assets = {
-            "js": OrderedDict(),
-            "css": OrderedDict(),
-            "static": OrderedDict()
-        }
+            for static in statics:
+                directory, filename = op.split(static)
+                self.__assets__["static"][filename] = directory
 
         self.__plugins_render_views__ = []
         self.__plugins__ = plugins
@@ -223,6 +233,10 @@ class Nemo(object):
 
         if app:
             self.init_app(self.app)
+
+    @property
+    def assets(self):
+        return self.__assets__
 
     def init_app(self, app=None):
         """ Initiate the application
@@ -566,7 +580,7 @@ class Nemo(object):
         :param asset: Filename of an asset
         :return: Response
         """
-        if type in self.assets and asset in self.assets[type]:
+        if type in self.assets and asset in self.assets[type] and self.assets[type][asset]:
             return send_from_directory(
                 directory=self.assets[type][asset],
                 filename=asset
@@ -578,17 +592,6 @@ class Nemo(object):
 
         :return: None
         """
-        # Save assets routes
-        for css in self.css:
-            directory, filename = op.split(css)
-            self.assets["css"][filename] = directory
-        for js in self.js:
-            directory, filename = op.split(js)
-            self.assets["js"][filename] = directory
-        for static in self.statics:
-            directory, filename = op.split(static)
-            self.assets["static"][filename] = directory
-
         self.blueprint.add_url_rule(
             # Register another path to ensure assets compatibility
             "{0}.secondary/<type>/<asset>".format(self.static_url_path),
@@ -779,8 +782,12 @@ class Nemo(object):
         """ Register plugins in Nemo instance
         """
 
-        if len([plugin for plugin in self.__plugins__ if plugin.clear]) > 0:  # Clear current routes
+        if len([plugin for plugin in self.__plugins__ if plugin.clear_routes]) > 0:  # Clear current routes
             self._urls = list()
+
+        if len([plugin for plugin in self.__plugins__ if plugin.clear_assets]) > 0:  # Clear current routes
+            self.__assets__ = copy(type(self).ASSETS)
+
         for plugin in self.__plugins__:
             self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
@@ -874,10 +881,9 @@ class Nemo(object):
         if string in Nemo.COLLECTIONS:
             return Nemo.COLLECTIONS[string]
         elif __regLit__.match(string):
-            try:
-                return flask_nemo._data.ISOCODES[string[0:2]][lang]
-            except:
-                return string
+            lg = string[0:2]
+            if lg in flask_nemo._data.ISOCODES and lang in flask_nemo._data.ISOCODES[lg]:
+                return flask_nemo._data.ISOCODES[lg][lang]
         return string
 
     @staticmethod
