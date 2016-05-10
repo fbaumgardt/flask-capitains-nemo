@@ -1,8 +1,6 @@
-from flask import Flask
 from unittest import TestCase
-from flask_nemo import Nemo
 from flask_nemo.plugin import PluginPrototype
-from tests.resources import NautilusDummy
+from .resources import make_client
 
 
 class PluginAssets(PluginPrototype):
@@ -26,30 +24,6 @@ class PluginAssets(PluginPrototype):
 class PluginClearAssets(PluginAssets):
     CLEAR_ASSETS = True
     STATIC_FOLDER = "tests/test_data/plugin_assets"
-
-
-def make_client(*args, **kwargs):
-    app = Flask("Nemo")
-    app.debug = True
-    if len(args):
-        nemo = Nemo(
-            app=app,
-            base_url="",
-            retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
-            plugins=list(args),
-            **kwargs
-        )
-    else:
-        nemo = Nemo(
-            app=app,
-            base_url="",
-            retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
-            plugins=None,
-            **kwargs
-        )
-    return app.test_client()
 
 
 class TestPluginAssets(TestCase):

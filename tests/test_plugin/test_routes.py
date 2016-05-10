@@ -1,10 +1,8 @@
-from flask import Flask
 from unittest import TestCase
-from flask_nemo import Nemo
 from flask_nemo.plugin import PluginPrototype
-from tests.resources import NautilusDummy
-from copy import copy
+from .resources import make_client
 import werkzeug.routing
+from copy import deepcopy as copy
 
 
 class PluginRoute(PluginPrototype):
@@ -46,20 +44,10 @@ class TestPluginRoutes(TestCase):
     """
 
     def setUp(self):
-        app = Flask("Nemo")
-        app.debug = True
         self.plugin_normal = PluginRoute(name="normal")
         self.plugin_namespacing = PluginRoute(name="test", namespacing=True)
         self.plugin_autonamespacing = PluginRoute(namespacing=True)
-        nemo = Nemo(
-            app=app,
-            base_url="",
-            retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
-            plugins=[self.plugin_normal, self.plugin_namespacing, self.plugin_autonamespacing]
-        )
-
-        self.client = app.test_client()
+        self.client = make_client(self.plugin_normal, self.plugin_namespacing, self.plugin_autonamespacing)
 
     def test_page_works(self):
         """ Test that passage page contains what is relevant : text and next passages"""
@@ -82,19 +70,9 @@ class TestPluginRoutes(TestCase):
 
     def test_plugin_clear(self):
         """ Test that passage page contains what is relevant : text and next passages"""
-
-        app = Flask("Nemo")
-        app.debug = True
         plugin = PluginClearRoute(name="normal")
-        nemo = Nemo(
-            app=app,
-            base_url="",
-            retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
-            plugins=[plugin]
-        )
+        client = make_client(plugin)
 
-        client = app.test_client()
         req = client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1")
         self.assertEqual(
             404, req.status_code,
@@ -118,18 +96,9 @@ class TestPluginRoutes(TestCase):
         class TempPlugin(PluginClearRoute):
             TEMPLATES = copy(PluginRoute.TEMPLATES)
 
-        app = Flask("Nemo")
-        app.debug = True
         plugin = TempPlugin(name="normal")
-        nemo = Nemo(
-            app=app,
-            base_url="",
-            retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
-            plugins=[plugin]
-        )
+        client = make_client(plugin)
 
-        client = app.test_client()
         with self.assertRaises(
                 werkzeug.routing.BuildError,
                 msg="Call to other routes in templates should fail to build"
