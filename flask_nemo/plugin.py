@@ -18,6 +18,8 @@ class PluginPrototype(object):
     :type FILTERS: list
     :cvar AUGMENT_RENDER: Enables post-processing in view rendering function Nemo().render(template, **kwargs)
     :type AUGMENT_RENDER: bool
+    :cvar CLEAR: Removes original nemo routes
+    :type CLEAR: bool
 
     :ivar templates: Instance-specific dictionary of templates
     :ivar routes: Instance-specific list of routes
@@ -41,14 +43,15 @@ class PluginPrototype(object):
     TEMPLATES = {}
     FILTERS = []
     HAS_AUGMENT_RENDER = True
+    CLEAR = False
 
     def __init__(self, name=None, nemo=None, namespacing=False, *args, **kwargs):
         self.__nemo__ = None
         self.__instance_name__ = name
-
         if not name:
             self.__instance_name__ = type(self).__name__
 
+        self.__clear__ = copy(type(self).CLEAR)
         self.__routes__ = copy(type(self).ROUTES)
         self.__filters__ = copy(type(self).FILTERS)
         self.__templates__ = copy(type(self).TEMPLATES)
@@ -77,6 +80,10 @@ class PluginPrototype(object):
     @property
     def augment(self):
         return self.__augment__
+
+    @property
+    def clear(self):
+        return self.__clear__
 
     @property
     def name(self):

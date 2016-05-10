@@ -26,6 +26,14 @@ class PluginRoute(PluginPrototype):
         return args
 
 
+class PluginClearRoute(PluginRoute):
+    CLEAR = True
+
+    TEMPLATES = {
+        "r_double": "tests/test_data/r_double.html"
+    }
+
+
 class TestPluginRoutes(TestCase):
     """ Test plugin implementation of filters
     """
@@ -49,6 +57,36 @@ class TestPluginRoutes(TestCase):
     def test_page_works(self):
         """ Test that passage page contains what is relevant : text and next passages"""
         query_data = str(self.client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1").data)
+        self.assertIn(
+            'Ho ! Saki, pass around and offer the bowl (of love for God)', query_data,
+            "English text should be displayed"
+        )
+        self.assertIn(
+            'Finstere Schatten der Nacht!', query_data,
+            "German text should be displayed"
+        )
+
+    def test_plugin_clear(self):
+        """ Test that passage page contains what is relevant : text and next passages"""
+
+        app = Flask("Nemo")
+        app.debug = True
+        plugin = PluginClearRoute(name="normal")
+        nemo = Nemo(
+            app=app,
+            base_url="",
+            retriever=NautilusDummy,
+            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            plugins=[plugin]
+        )
+
+        client = app.test_client()
+        req = client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1")
+        self.assertEqual(
+            404, req.status_code,
+            "Original routes should not exist anymore"
+        )
+        query_data = str(client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1").data)
         self.assertIn(
             'Ho ! Saki, pass around and offer the bowl (of love for God)', query_data,
             "English text should be displayed"

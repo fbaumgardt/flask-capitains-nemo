@@ -776,6 +776,9 @@ class Nemo(object):
     def register_plugins(self):
         """ Register plugins in Nemo instance
         """
+
+        if len([plugin for plugin in self.__plugins__ if plugin.clear]) > 0:  # Clear current routes
+            self._urls = list()
         for plugin in self.__plugins__:
             self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
