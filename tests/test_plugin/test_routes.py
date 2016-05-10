@@ -15,6 +15,7 @@ class PluginRoute(PluginPrototype):
     TEMPLATES = {
         "r_double": "tests/test_data/r_double.html"
     }
+    HAS_AUGMENT_RENDER = True
 
     def r_double(self, collection, textgroup, work, version, passage_identifier, visavis):
         args = self.nemo.r_passage(collection, textgroup, work, version, passage_identifier)
@@ -26,6 +27,10 @@ class PluginRoute(PluginPrototype):
         })
         args["template"] = self.templates["r_double"]
         return args
+
+    def render(self, kwargs):
+        kwargs["lang"] = "fre"
+        return kwargs
 
 
 class PluginClearRoute(PluginRoute):
@@ -66,6 +71,13 @@ class TestPluginRoutes(TestCase):
         self.assertIn(
             'Finstere Schatten der Nacht!', query_data,
             "German text should be displayed"
+        )
+
+    def test_plugin_change_render(self):
+        query_data = str(self.client.get("/read/farsiLit/hafez").data)
+        self.assertIn(
+            'Perse', query_data,
+            "French Translation should be displayed"
         )
 
     def test_plugin_clear(self):

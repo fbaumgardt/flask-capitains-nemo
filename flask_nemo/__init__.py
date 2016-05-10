@@ -9,9 +9,8 @@
 __version__ = "0.0.1"
 
 import os.path as op
-import requests_cache
 import jinja2
-from flask import request, render_template, Blueprint, abort, Markup, send_from_directory, Flask
+from flask import render_template, Blueprint, abort, Markup, send_from_directory, Flask
 import MyCapytain.retrievers.cts5
 from MyCapytain.retrievers.proto import CTS as CtsProtoRetriever
 import MyCapytain.resources.texts.tei
@@ -24,6 +23,9 @@ from pkg_resources import resource_filename
 from functools import reduce
 from collections import defaultdict, OrderedDict, Callable
 import flask_nemo._data
+import re
+
+__regLit__ = re.compile("^[a-z]{3}Lit$")
 
 
 class Nemo(object):
@@ -861,7 +863,7 @@ class Nemo(object):
         return ""
 
     @staticmethod
-    def f_collection_i18n(string):
+    def f_collection_i18n(string, lang="eng"):
         """ Return a i18n human readable version of a CTS domain such as latinLit
 
         :param string: CTS Domain identifier
@@ -871,6 +873,11 @@ class Nemo(object):
         """
         if string in Nemo.COLLECTIONS:
             return Nemo.COLLECTIONS[string]
+        elif __regLit__.match(string):
+            try:
+                return flask_nemo._data.ISOCODES[string[0:2]][lang]
+            except:
+                return string
         return string
 
     @staticmethod

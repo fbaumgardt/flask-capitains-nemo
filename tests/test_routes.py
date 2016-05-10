@@ -378,7 +378,6 @@ class NemoTestRoutes(NemoResource):
                 {'link': None, 'title': '1.1', 'args': {'textgroup': 'phi1294', 'collection': 'latinLit', 'work':'phi002','version':'perseus-lat2', 'passage_identifier':"1.1"}}
             ])
 
-
     def test_make_version_breadcrumb(self):
         """ version breadcrumb should include all components up to version and version not linked
         """

@@ -6,7 +6,7 @@
 </header>
 <ul class="menu">
     {% for collection in collections %}
-        <li><a class="{{collection|active_link(url)}}" href="{{url_for('.r_collection', collection=collection)}}">{{collection|collection_i18n}}</a></li>
+        <li><a class="{{collection|active_link(url)}}" href="{{url_for('.r_collection', collection=collection)}}">{{collection|collection_i18n(lang)}}</a></li>
     {% endfor %}
 </ul>
 {% if textgroups %}

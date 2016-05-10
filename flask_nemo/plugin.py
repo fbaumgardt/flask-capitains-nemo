@@ -42,7 +42,7 @@ class PluginPrototype(object):
     ROUTES = []
     TEMPLATES = {}
     FILTERS = []
-    HAS_AUGMENT_RENDER = True
+    HAS_AUGMENT_RENDER = False
     CLEAR = False
 
     def __init__(self, name=None, nemo=None, namespacing=False, *args, **kwargs):
