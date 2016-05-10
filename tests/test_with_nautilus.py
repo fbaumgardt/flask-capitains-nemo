@@ -14,14 +14,105 @@ class NemoTestRoutes(TestCase):
     """
     def setUp(self):
         app = Flask("Nemo")
+        app.debug = True
         nemo = Nemo(
             app=app,
             base_url="",
             retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)}
+            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            css=[
+                "./tests/test_data/empty.css",
+                "//foo.bar/test.css",
+                "http://bar.foo/test.css",
+                "https://super.secure/mypasswordin.css"
+            ],
+            js=[
+                "./tests/test_data/empty.js",
+                "//foo.bar/test.js",
+                "http://bar.foo/test.js",
+                "https://super.secure/mypasswordin.js"
+            ],
         )
 
         self.client = app.test_client()
+
+    def test_default_template_assets(self):
+        """ Test that the index menu is correctly built """
+        query_data = str(self.client.get("/").data)
+
+        jss = [
+            "//foo.bar/test.js",
+            "http://bar.foo/test.js",
+            "https://super.secure/mypasswordin.js"
+        ]
+        assert_length_js = len(jss)
+        for js in jss:
+            self.assertIn(
+                '<script src="{0}"></script>'.format(js), query_data,
+                "Templates should correctly link external js"
+            )
+            assert_length_js -= 1
+        self.assertEqual(assert_length_js, 0, "All js file should have been checked")
+
+        csss = [
+            "//foo.bar/test.css",
+            "http://bar.foo/test.css",
+            "https://super.secure/mypasswordin.css"
+        ]
+        assert_length_js = len(csss)
+        for css in csss:
+            self.assertIn(
+                '<link rel="stylesheet" href="{0}">'.format(css), query_data,
+                "Templates should correctly link external css"
+            )
+            assert_length_js -= 1
+        self.assertEqual(assert_length_js, 0, "All css files should have been checked")
+
+        self.assertIn(
+            '<link rel="stylesheet" href="/assets/nemo.secondary/css/empty.css">', query_data,
+            "Secondary Internal CSS should be linked"
+        )
+        self.assertIn(
+            '<script src="/assets/nemo.secondary/js/empty.js"></script>', query_data,
+            "Secondary Internal JS should be retrieved"
+        )
+
+    def test_serving_secondary_assets(self):
+        """ Ensure secondary assets are served
+        """
+        query_data = str(self.client.get("/assets/nemo.secondary/css/empty.css").data)
+        self.assertIn(".empty {", query_data, "Local CSS File should be read")
+
+        query_data = str(self.client.get("/assets/nemo.secondary/js/empty.js").data)
+        self.assertIn("var empty = True;", query_data, "Local JS File should be read")
+
+    def test_serving_primary_assets(self):
+        """ Ensure primary assets are served
+        """
+        query_data = str(self.client.get("/assets/nemo/css/theme.min.css").data)
+        self.assertIn("body, html", query_data, "Primary Assets should be served")
+
+    def test_serving_overwritten_primary_assets(self):
+        """ Ensure primary assets are served
+        """
+        app = Flask("Nemo")
+        app.debug = True
+        nemo = Nemo(
+            app=app,
+            base_url="",
+            retriever=NautilusDummy,
+            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            static_folder="tests/test_data/assets"
+        )
+
+        client = app.test_client()
+        query_data = str(client.get("/assets/nemo/fake.png").data)
+        self.assertIn("fake", query_data, "Primary Assets should be served when overwritting")
+
+        self.assertEqual(
+            client.get("/assets/nemo/css/theme.min.css").status_code, 404,
+            "Old Primary Assets should not be served when overwritting"
+        )
 
     def test_index_menu(self):
         """ Test that the index menu is correctly built """
