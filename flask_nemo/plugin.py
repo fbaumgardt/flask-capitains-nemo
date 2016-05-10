@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from copy import copy
+from copy import deepcopy as copy
+from flask_nemo import resource_qualifier, Nemo
 
 
 class PluginPrototype(object):
@@ -18,8 +19,16 @@ class PluginPrototype(object):
     :type FILTERS: list
     :cvar AUGMENT_RENDER: Enables post-processing in view rendering function Nemo().render(template, **kwargs)
     :type AUGMENT_RENDER: bool
-    :cvar CLEAR: Removes original nemo routes
-    :type CLEAR: bool
+    :cvar CLEAR_ROUTES: Removes original nemo routes
+    :type CLEAR_ROUTES: bool
+    :cvar CLEAR_ASSETS: Removes original nemo secondary assets
+    :type CLEAR_ASSETS: bool
+
+    :cvar STATIC_FOLDER: Change original STATIC_FOLDER
+    :cvar TEMPLATE_FOLDER: Change original TEMPLATE_FOLDER
+    :cvar CSS: List of CSS resources to link in and give access to if local
+    :cvar JS: List of JS resources to link in and give access to if local
+    :cvar STATIC: List of CSS resources to link in and give access to if local
 
     :ivar templates: Instance-specific dictionary of templates
     :ivar routes: Instance-specific list of routes
@@ -45,6 +54,10 @@ class PluginPrototype(object):
     HAS_AUGMENT_RENDER = False
     CLEAR_ROUTES = False
     CLEAR_ASSETS = False
+    CSS = []
+    STATICS = []
+    JS = []
+    STATIC_FOLDER = None
 
     def __init__(self, name=None, nemo=None, namespacing=False, *args, **kwargs):
         self.__nemo__ = None
@@ -54,6 +67,7 @@ class PluginPrototype(object):
 
         self.__clear_routes__ = copy(type(self).CLEAR_ROUTES)
         self.__clear_assets__ = copy(type(self).CLEAR_ASSETS)
+        self.__static_folder__ = copy(type(self).STATIC_FOLDER)
         self.__routes__ = copy(type(self).ROUTES)
         self.__filters__ = copy(type(self).FILTERS)
         self.__templates__ = copy(type(self).TEMPLATES)
@@ -72,12 +86,27 @@ class PluginPrototype(object):
         if nemo:
             self.register_nemo(nemo)
 
+        self.__assets__ = copy(Nemo.ASSETS)
+        for css in type(self).CSS:
+            key, value = resource_qualifier(css)
+            self.__assets__["css"][key] = value
+        for js in type(self).JS:
+            key, value = resource_qualifier(js)
+            self.__assets__["js"][key] = value
+        for static in type(self).STATICS:
+            key, value = resource_qualifier(static)
+            self.__assets__["static"][key] = value
+
     def register_nemo(self, nemo=None):
         """ Register Nemo on to the plugin instance
 
         :param nemo: Instance of Nemo
         """
         self.__nemo__ = nemo
+
+    @property
+    def assets(self):
+        return self.__assets__
 
     @property
     def augment(self):
@@ -94,6 +123,11 @@ class PluginPrototype(object):
     @property
     def name(self):
         return self.__instance_name__
+
+    @property
+    def static_folder(self):
+        return self.__static_folder__
+
 
     @property
     def namespaced(self):

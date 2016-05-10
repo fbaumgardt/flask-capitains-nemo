@@ -18,7 +18,7 @@ import MyCapytain.resources.texts.api
 import MyCapytain.resources.inventory
 from MyCapytain.common.reference import URN
 from lxml import etree
-from copy import copy
+from copy import deepcopy as copy
 from pkg_resources import resource_filename
 from functools import reduce
 from collections import defaultdict, OrderedDict, Callable
@@ -72,7 +72,8 @@ class Nemo(object):
     :type templates: {str: str}
     :param statics: Path to additional statics such as picture to load
     :type statics: [str]
-
+    :param prevent_plugin_clearing_assets: Prevent plugins to clear the static folder route
+    :type prevent_plugin_clearing_assets: bool
     .. warning:: Until a C libxslt error is fixed ( https://bugzilla.gnome.org/show_bug.cgi?id=620102 ), it is not possible to use strip spaces in the xslt given to this application. See :ref:`lxml.strip-spaces`
     """
 
@@ -111,6 +112,7 @@ class Nemo(object):
         "f_i18n_citation_type",
         "f_order_author"
     ]
+
     """ Assets dictionary model
     """
     ASSETS = {
@@ -123,7 +125,8 @@ class Nemo(object):
                  plugins=None,
                  template_folder=None, static_folder=None, static_url_path=None,
                  urls=None, inventory=None, transform=None, urntransform=None, chunker=None, prevnext=None,
-                 css=None, js=None, templates=None, statics=None):
+                 css=None, js=None, templates=None, statics=None,
+                 prevent_plugin_clearing_assets=False):
 
         self.name = __name__
         if name:
@@ -148,9 +151,9 @@ class Nemo(object):
         self.api_inventory = inventory
         if self.api_inventory:
             self.retriever.inventory = self.api_inventory
+
         self.cache = None
-        if cache is not None:
-            self.__register_cache(cache, expire)
+        self.prevent_plugin_clearing_assets = prevent_plugin_clearing_assets
 
         if template_folder:
             self.template_folder = template_folder
@@ -207,21 +210,15 @@ class Nemo(object):
 
         # Setting up assets
         self.__assets__ = copy(type(self).ASSETS)
-        if isinstance(css, list):
+        if css and isinstance(css, list):
             for css_s in css:
-                if css_s.startswith("//") or css_s.startswith("http"):
-                    self.__assets__["css"][css_s] = None
-                else:
-                    directory, filename = op.split(css_s)
-                    self.__assets__["css"][filename] = directory
-        if isinstance(js, list):
+                filename, directory = resource_qualifier(css_s)
+                self.__assets__["css"][filename] = directory
+        if js and isinstance(js, list):
             for javascript in js:
-                if javascript.startswith("//") or javascript.startswith("http"):
-                    self.__assets__["js"][javascript] = None
-                else:
-                    directory, filename = op.split(javascript)
-                    self.__assets__["js"][filename] = directory
-        if isinstance(statics, list):
+                filename, directory = resource_qualifier(javascript)
+                self.__assets__["js"][filename] = directory
+        if statics and isinstance(statics, list):
             for static in statics:
                 directory, filename = op.split(static)
                 self.__assets__["static"][filename] = directory
@@ -785,13 +782,20 @@ class Nemo(object):
         if len([plugin for plugin in self.__plugins__ if plugin.clear_routes]) > 0:  # Clear current routes
             self._urls = list()
 
-        if len([plugin for plugin in self.__plugins__ if plugin.clear_assets]) > 0:  # Clear current routes
+        clear_assets = [plugin for plugin in self.__plugins__ if plugin.clear_assets]
+        if len(clear_assets) > 0 and not self.prevent_plugin_clearing_assets:  # Clear current routes
             self.__assets__ = copy(type(self).ASSETS)
+            static_path = [plugin.static_folder for plugin in clear_assets if plugin.static_folder]
+            if len(static_path) > 0:
+                self.static_folder = static_path[-1]
 
         for plugin in self.__plugins__:
             self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
             self.templates.update(plugin.templates)
+            for asset_type in self.__assets__:
+                for key, value in plugin.assets[asset_type].items():
+                    self.__assets__[asset_type][key] = value
             if plugin.augment:
                 self.__plugins_render_views__.append(plugin)
             plugin.register_nemo(self)
@@ -1225,6 +1229,18 @@ def _plugin_endpoint_rename(fn_name, instance):
     if instance and instance.namespaced:
         fn_name = "r_{0}_{1}".format(instance.name, fn_name[2:])
     return fn_name
+
+
+def resource_qualifier(resource):
+    """ Split a resource in (filename, directory) tuple with taking care of external resources
+
+    :param resource: A file path or a URI
+    :return: (Filename, Directory) for files, (URI, None) for URI
+    """
+    if resource.startswith("//") or resource.startswith("http"):
+        return resource, None
+    else:
+        return reversed(op.split(resource))
 
 
 def cmd():

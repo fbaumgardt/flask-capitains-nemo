@@ -198,7 +198,6 @@ class NemoTestRoutes(NemoResource):
             js=["testing_data/getcapabilities.xml"],
             css=["testing_data/style.css"]
         )
-
         nemo.blueprint = Mock()
         nemo.register_assets()
         with patch("flask_nemo.send_from_directory") as patched:

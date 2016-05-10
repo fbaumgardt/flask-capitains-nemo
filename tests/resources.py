@@ -2,6 +2,7 @@ import unittest
 from flask.ext.nemo import Nemo
 from flask import Markup, Flask
 from capitains_nautilus.mycapytain import NautilusRetriever
+import logging
 
 
 def create_test_app(debug=False, config=None):
@@ -61,6 +62,10 @@ class NemoResource(unittest.TestCase):
             api_url=NemoResource.endpoint
         )
 
-NautilusDummy = NautilusRetriever(folders=[
-    "./tests/test_data/nautilus/farsiLit", "./tests/test_data/nautilus/latinLit"]
+NautilusDummy = NautilusRetriever(
+    folders=[
+        "./tests/test_data/nautilus/farsiLit",
+        "./tests/test_data/nautilus/latinLit"
+    ]
 )
+NautilusDummy.logger.setLevel(logging.ERROR)
