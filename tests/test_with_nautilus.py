@@ -198,3 +198,34 @@ class NemoTestRoutes(TestCase):
             query_data, test_data,
             "Original Dict and Decoded Output JSON should be equal"
         )
+
+    def test_breadcrumb(self):
+        """ Ensure breadcrumb is bydefault loaded
+        """
+        query_data = str(self.client.get("/read/latinLit/phi1294").data)
+        self.assertIn(
+            '<li><a href="/read/latinLit">latinLit</a></li>', query_data,
+            "Breadcrumb should be visible"
+        )
+        self.assertIn(
+            '<li class="active">Martial</li>', query_data,
+            "Breadcrumb should be visible"
+        )
+
+    def test_no_default_breadcrumb(self):
+        """ Ensure breadcrumb is bydefault loaded
+        """
+
+        app = Flask("Nemo")
+        app.debug = True
+        nemo = Nemo(app=app, base_url="", retriever=NautilusDummy, original_breadcrumb=False)
+        client = app.test_client()
+        query_data = str(client.get("/read/latinLit/phi1294").data)
+        self.assertNotIn(
+            '<ol class="breadcrumb">', query_data,
+            "Breadcrumb should not be visible"
+        )
+        self.assertNotIn(
+            '<li class="active">Martial</li>', query_data,
+            "Breadcrumb should not be visible"
+        )

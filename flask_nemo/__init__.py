@@ -6,7 +6,6 @@
     Extensions for Flask to propose a Nemo extensions
 """
 
-__version__ = "0.0.1"
 
 import os.path as op
 import jinja2
@@ -23,6 +22,8 @@ from pkg_resources import resource_filename
 from functools import reduce
 from collections import defaultdict, OrderedDict, Callable
 import flask_nemo._data
+from flask_nemo.default import Breadcrumb
+from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
 import re
 
 __regLit__ = re.compile("^[a-z]{3}Lit$")
@@ -104,18 +105,15 @@ class Nemo(object):
 
     """ Assets dictionary model
     """
-    ASSETS = {
-        "js": OrderedDict(),
-        "css": OrderedDict(),
-        "static": OrderedDict()
-    }
+    ASSETS = copy(ASSETS_STRUCTURE)
 
     def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", cache=None, expire=3600,
                  plugins=None,
                  template_folder=None, static_folder=None, static_url_path=None,
                  urls=None, inventory=None, transform=None, urntransform=None, chunker=None, prevnext=None,
                  css=None, js=None, templates=None, statics=None,
-                 prevent_plugin_clearing_assets=False):
+                 prevent_plugin_clearing_assets=False,
+                 original_breadcrumb=True):
 
         self.name = __name__
         if name:
@@ -209,9 +207,11 @@ class Nemo(object):
                 self.__assets__["static"][filename] = directory
 
         self.__plugins_render_views__ = []
-        self.__plugins__ = plugins
-        if not plugins:
-            self.__plugins__ = []
+        self.__plugins__ = []
+        if original_breadcrumb:
+            self.__plugins__.append(Breadcrumb(name="breadcrumb"))
+        if isinstance(plugins, list):
+            self.__plugins__.extend(plugins)
 
         self.__templates_namespaces__ = [
             ("main", self.template_folder)
@@ -225,6 +225,9 @@ class Nemo(object):
         if app:
             self.init_app(self.app)
 
+    @property
+    def plugins(self):
+        return self.__plugins__
 
     @property
     def assets(self):
@@ -647,7 +650,7 @@ class Nemo(object):
         else:
             return lambda **kwargs: self.route(getattr(self, name), **kwargs)
 
-    def render(self, template, *args, **kwargs):
+    def render(self, template, **kwargs):
         """ Render a route template and adds information to this route.
 
         :param template: Template name.
@@ -668,67 +671,11 @@ class Nemo(object):
                 kwargs["texts"] = self.get_texts(kwargs["url"]["collection"], kwargs["url"]["textgroup"])
 
         kwargs["assets"] = self.assets
-        kwargs["breadcrumbs"] = self.make_breadcrumbs(**kwargs)
 
         for plugin in self.__plugins_render_views__:
-            kwargs = plugin.render(kwargs)
+            kwargs = plugin.render(**kwargs)
 
         return render_template(template, **kwargs)
-
-    def make_breadcrumbs(self, **kwargs):
-        """ Make breadcrumbs for a route
-
-        :param kwargs: dictionary of named arguments used to construct the view
-        :type kwargs: dict
-        :return: List of dict items the view can use to construct the link. 
-        :rtype: list({ "link": str, "title", str, "args", dict})
-        """
-        breadcrumbs = []
-        # this is the list of items we want to accumulate in the breadcrumb trail.  
-        # item[0] is the key into the kwargs["url"] object and item[1] is the  name of the route
-        # setting a route name to None means that it's needed to construct the route of the next item in the list
-        # but shouldn't be included in the list itself (this is currently the case for work -- 
-        # at some point we probably should include work in the navigation)
-        crumbtypes = [
-            ["collection", ".r_collection"],
-            ["textgroup", ".r_texts"],
-            ["work", None],
-            ["version", ".r_version"],
-            ["passage_identifier", ".r_passage"]
-        ]
-        for idx, crumb_type in enumerate(crumbtypes) :
-            if kwargs["url"] and crumb_type[0] in kwargs["url"]:
-                crumb = {}
-                # what we want to display as the crumb title depends upon what it is
-                # in the future, having a common display_name property on the model would be helpful to avoid
-                # this logic here
-                if crumb_type[0] == "textgroup":
-                    # get the groupname of the current textgroup
-                    item = list(filter(lambda textgroup: textgroup.urn.textgroup == kwargs["url"]["textgroup"], kwargs["textgroups"]))
-                    crumb["title"] = item[0].metadata["groupname"][kwargs["lang"]]
-                elif crumb_type[0] == "version":
-                    # get the label of the current version
-                    crumb["title"] = kwargs["version"].metadata["label"][kwargs["lang"]]
-                else:
-                    # for everything else, just use the value as metadata isn't applicable
-                    crumb["title"] = kwargs["url"][crumb_type[0]]
-                # iterate through the crumb types and pull together the args that lead up to this type
-                # so that we can reconstruct the route to just this part of the breadcrumb trail
-                crumb_args = {}
-                iteridx = idx
-                while iteridx >= 0:
-                    crumb_args[crumbtypes[iteridx][0]] = kwargs["url"][crumbtypes[iteridx][0]]
-                    iteridx = iteridx - 1
-
-                crumb["link"] = crumb_type[1]
-                crumb["args"] = crumb_args
-                # skip items in the trail that are only used to construct others
-                if crumb_type[1]:
-                    breadcrumbs.append(crumb)
-        # don't link the last item in the trail
-        if len(breadcrumbs) > 0:
-            breadcrumbs[-1]["link"] = None
-        return breadcrumbs
 
     def route(self, fn, **kwargs):
         """ Route helper : apply fn function but keep the calling object, *ie* kwargs, for other functions
@@ -785,7 +732,7 @@ class Nemo(object):
             self._urls = list()
 
         clear_assets = [plugin for plugin in self.__plugins__ if plugin.clear_assets]
-        if len(clear_assets) > 0 and not self.prevent_plugin_clearing_assets:  # Clear current routes
+        if len(clear_assets) > 0 and not self.prevent_plugin_clearing_assets:  # Clear current Assets
             self.__assets__ = copy(type(self).ASSETS)
             static_path = [plugin.static_folder for plugin in clear_assets if plugin.static_folder]
             if len(static_path) > 0:
@@ -1233,18 +1180,6 @@ def _plugin_endpoint_rename(fn_name, instance):
     if instance and instance.namespaced:
         fn_name = "r_{0}_{1}".format(instance.name, fn_name[2:])
     return fn_name
-
-
-def resource_qualifier(resource):
-    """ Split a resource in (filename, directory) tuple with taking care of external resources
-
-    :param resource: A file path or a URI
-    :return: (Filename, Directory) for files, (URI, None) for URI
-    """
-    if resource.startswith("//") or resource.startswith("http"):
-        return resource, None
-    else:
-        return reversed(op.split(resource))
 
 
 def cmd():

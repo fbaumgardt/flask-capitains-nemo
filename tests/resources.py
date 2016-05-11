@@ -59,7 +59,8 @@ class NemoResource(unittest.TestCase):
             self.getPassage_Route = RequestPatchChained([self.getCapabilities, self.getPassage, self.getPrevNext])
 
         self.nemo = Nemo(
-            api_url=NemoResource.endpoint
+            api_url=NemoResource.endpoint,
+            app=Flask(__name__)
         )
 
 NautilusDummy = NautilusRetriever(

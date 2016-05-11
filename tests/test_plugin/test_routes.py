@@ -29,7 +29,7 @@ class PluginRoute(PluginPrototype):
         args["template"] = type(self).ROUTE_TEMPLATES["r_double"]
         return args
 
-    def render(self, kwargs):
+    def render(self, **kwargs):
         kwargs["lang"] = "fre"
         return kwargs
 

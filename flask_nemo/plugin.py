@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from copy import deepcopy as copy
-from flask_nemo import resource_qualifier, Nemo
+from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
 
 
 class PluginPrototype(object):
@@ -86,7 +86,7 @@ class PluginPrototype(object):
         if nemo:
             self.register_nemo(nemo)
 
-        self.__assets__ = copy(Nemo.ASSETS)
+        self.__assets__ = copy(ASSETS_STRUCTURE)
         for css in type(self).CSS:
             key, value = resource_qualifier(css)
             self.__assets__["css"][key] = value
@@ -149,7 +149,7 @@ class PluginPrototype(object):
     def nemo(self):
         return self.__nemo__
 
-    def render(self, kwargs):
+    def render(self, **kwargs):
         """ View Rendering function that gets triggered before nemo renders the resources and adds informations to \
         pass to the templates
 
@@ -157,3 +157,4 @@ class PluginPrototype(object):
         :return: Dictionary of arguments to pass to the template
         """
         return kwargs
+
