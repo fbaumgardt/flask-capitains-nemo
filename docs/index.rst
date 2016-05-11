@@ -15,5 +15,6 @@ Welcome to the flask extension Nemo documentation!
    Nemo.developer_guide
    Nemo.templates
    Nemo.chunker
+   Nemo.plugin
    LXML
    Nemo.api

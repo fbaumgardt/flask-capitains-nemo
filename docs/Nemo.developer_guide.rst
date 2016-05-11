@@ -21,7 +21,8 @@ Running tests
 In flask-capitains-nemo repository
 
 .. code-block:: shell
-    .. linenos::
+    :linenos:
+    
     virtualenv env -p /usr/bin/python3
     source env/bin/activate
     python setup.py tests
