@@ -32,7 +32,7 @@ You can add namespace to Nemo by using the templates parameter on initiation, bu
 
 .. note:: It is recommended to split namespaced templates in different folders when adding templates to the Nemo instance.
 
-.. warning:: If two declared namespace shared the same directory, for example, `main::` and `plugin_1::`, it means that `main::file.html` and `plugin_1::file.html` are the same.
+.. warning:: If two declared namespaces share the same directory, there is risk of collision between templates names and thus overwriting potential. For example, if ``main::`` and ``plugin_1::`` point to ``dir1``,  ``main::file.html`` and `plugin_1::file.html` are the same.
 
 Template choice behaviour in Nemo
 *********************************
