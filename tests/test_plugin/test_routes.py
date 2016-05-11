@@ -11,7 +11,7 @@ class PluginRoute(PluginPrototype):
     ]
 
     TEMPLATES = {
-        "plugin_route": "tests/test_data"
+        "plugin_route": "tests/test_data/plugin_templates_main/plugin"
     }
     ROUTE_TEMPLATES = {
         "r_double": "plugin_route::r_double.html"
@@ -41,7 +41,8 @@ class PluginClearRoute(PluginRoute):
         "r_double": "plugin_cleared_route::r_double.html"
     }
     TEMPLATES = {
-        "plugin_cleared_route": "tests/test_data"
+        "plugin_cleared_route": "tests/test_data/plugin_templates_main/plugin",
+        "main": "tests/test_data/plugin_templates_main/main"
     }
 
 
@@ -53,11 +54,10 @@ class TestPluginRoutes(TestCase):
         self.plugin_normal = PluginRoute(name="normal")
         self.plugin_namespacing = PluginRoute(name="test", namespacing=True)
         self.plugin_autonamespacing = PluginRoute(namespacing=True)
-        self.client = make_client(self.plugin_normal, self.plugin_namespacing, self.plugin_autonamespacing)
 
     def test_page_works(self):
         """ Test that passage page contains what is relevant : text and next passages"""
-        query_data = str(self.client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1").data)
+        query_data = str(make_client(self.plugin_normal).get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1").data)
         self.assertIn(
             'Ho ! Saki, pass around and offer the bowl (of love for God)', query_data,
             "English text should be displayed"
@@ -68,14 +68,16 @@ class TestPluginRoutes(TestCase):
         )
 
     def test_plugin_change_render(self):
-        query_data = str(self.client.get("/read/farsiLit/hafez").data)
+        """ Check that the augmenting render function works and is correctly plugged
+        """
+        query_data = str(make_client(self.plugin_normal).get("/read/farsiLit/hafez").data)
         self.assertIn(
             'Perse', query_data,
             "French Translation should be displayed"
         )
 
     def test_plugin_clear(self):
-        """ Test that passage page contains what is relevant : text and next passages"""
+        """ Test that passage page contains what is relevant : text and next passages """
         plugin = PluginClearRoute(name="normal")
         client = make_client(plugin)
 
@@ -101,6 +103,7 @@ class TestPluginRoutes(TestCase):
         """
         class TempPlugin(PluginClearRoute):
             TEMPLATES = copy(PluginRoute.TEMPLATES)
+            ROUTE_TEMPLATES = copy(PluginRoute.ROUTE_TEMPLATES)
 
         plugin = TempPlugin(name="normal")
         client = make_client(plugin)
@@ -116,16 +119,16 @@ class TestPluginRoutes(TestCase):
         """
         class PluginTemplate(PluginPrototype):
             TEMPLATES = {
-                "main": "tests/test_data/plugin_templates_main"
+                "main": "tests/test_data/plugin_templates_main/main"
             }
         client = make_client(PluginTemplate())
         query_data = str(client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1").data)
         self.assertIn(
-            'I am A CONTAINER ! Isn\'t it sweet !', query_data,
+            'I am A CONTAINER !', query_data,
             "Container should have been overwritten"
         )
         query_data = str(client.get("/read/farsiLit/hafez").data)
         self.assertIn(
-            'I am A CONTAINER ! Isn\'t it sweet !', query_data,
+            'I am A CONTAINER !', query_data,
             "Container should have been overwritten on a second page as well"
         )

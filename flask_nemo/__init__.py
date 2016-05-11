@@ -627,7 +627,6 @@ class Nemo(object):
             self.__template_loader__[namespace].append(
                 jinja2.FileSystemLoader(op.abspath(directory))
             )
-        print(self.__templates_namespaces__)
         self.blueprint.jinja_loader = jinja2.PrefixLoader(
             {namespace: jinja2.ChoiceLoader(paths) for namespace, paths in self.__template_loader__.items()},
             "::"

@@ -343,10 +343,10 @@ class NemoTestRoutes(NemoResource):
     def test_additional_template(self):
         # Line 568-575
         app = Flask(__name__)
-        nemo = Nemo(app=app, templates={"addendum": "tests/test_data/plugin_templates_main"})
+        nemo = Nemo(app=app, templates={"addendum": "tests/test_data/plugin_templates_main/main"})
         blueprint = nemo.create_blueprint()
 
-        html, path, function = blueprint.jinja_loader.get_source("", "addendum::plugin_container.html")
+        html, path, function = blueprint.jinja_loader.get_source("", "addendum::container.html")
         self.assertIn("I am A CONTAINER ! Isn't it sweet !", html)
 
         with self.assertRaises(TemplateNotFound):
