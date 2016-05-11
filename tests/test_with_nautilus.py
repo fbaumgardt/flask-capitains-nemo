@@ -6,7 +6,7 @@
 from unittest import TestCase
 from .resources import NautilusDummy
 from flask_nemo import Nemo
-from flask import Flask
+from flask import Flask, jsonify
 
 
 class NemoTestRoutes(TestCase):
@@ -172,4 +172,29 @@ class NemoTestRoutes(TestCase):
         self.assertIn(
             'href="/read/latinLit/phi1294/phi002/perseus-lat2/1.1.1-1.3.8"', query_data,
             "App should have link to the next passage"
+        )
+
+    def test_json_route(self):
+        """ Test that adding routes to Nemo instance (without plugin) which output json works
+        """
+        import json
+        test_data = {"SomeDict": "IsGood"}
+
+        class NemoJson(Nemo):
+            ROUTES = Nemo.ROUTES + [("/getJson", "r_json", ["GET"])]
+
+            def r_json(self):
+                """ Route with no templates should return none as first value
+                """
+                return jsonify(test_data)
+
+        app = Flask("Nemo")
+        app.debug = True
+        nemo = NemoJson(app=app, base_url="", retriever=NautilusDummy)
+        client = app.test_client()
+        query_data = json.loads(client.get("/getJson").data.decode('utf8'))
+
+        self.assertEqual(
+            query_data, test_data,
+            "Original Dict and Decoded Output JSON should be equal"
         )

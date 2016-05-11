@@ -159,7 +159,7 @@ class Nemo(object):
         if urls:
             self._urls = urls
         else:
-            self._urls = Nemo.ROUTES
+            self._urls = copy(type(self).ROUTES)
 
         # Adding instance information
         self._urls = [tuple(list(url) + [None]) for url in self._urls]
@@ -184,12 +184,12 @@ class Nemo(object):
             self.__urntransform.update(urntransform)
 
         self.chunker = dict()
-        self.chunker["default"] = Nemo.default_chunker
+        self.chunker["default"] = type(self).default_chunker
         if isinstance(chunker, dict):
             self.chunker.update(chunker)
 
         self.prevnext = dict()
-        self.prevnext["default"] = Nemo.default_prevnext
+        self.prevnext["default"] = type(self).default_prevnext
         if isinstance(prevnext, dict):
             self.prevnext.update(prevnext)
 
@@ -561,7 +561,7 @@ class Nemo(object):
             "template": "main::text.html",
             "version": edition,
             "text_passage": Markup(passage),
-            "urn" : urn,
+            "urn": urn,
             "prev": prev,
             "next": next
         }
@@ -647,16 +647,17 @@ class Nemo(object):
         else:
             return lambda **kwargs: self.route(getattr(self, name), **kwargs)
 
-    def render(self, template, **kwargs):
+    def render(self, template, *args, **kwargs):
         """ Render a route template and adds information to this route.
 
-        :param template: Template name
+        :param template: Template name.
         :type template: str
         :param kwargs: dictionary of named arguments used to be passed to the template
         :type kwargs: dict
         :return: Http Response with rendered template
         :rtype: flask.Response
         """
+
         kwargs["collections"] = self.get_collections()
         kwargs["lang"] = "eng"
 
@@ -740,6 +741,11 @@ class Nemo(object):
         :rtype: flask.Response
         """
         new_kwargs = fn(**kwargs)
+
+        # If there is no templates, we assume that the response is finalized :
+        if not isinstance(new_kwargs, dict):
+            return new_kwargs
+
         new_kwargs["url"] = kwargs
         return self.render(**new_kwargs)
 
