@@ -68,7 +68,7 @@ class Nemo(object):
     :type css: [str]
     :param js: Path to additional javascripts to load
     :type js: [str]
-    :param templates: Register or override templates (Dictionary of index / path)
+    :param templates: Register or override templates (Dictionary of namespace / directory containing template)
     :type templates: {str: str}
     :param statics: Path to additional statics such as picture to load
     :type statics: [str]
@@ -84,17 +84,6 @@ class Nemo(object):
         ("/read/<collection>/<textgroup>/<work>/<version>", "r_version", ["GET"]),
         ("/read/<collection>/<textgroup>/<work>/<version>/<passage_identifier>", "r_passage", ["GET"])
     ]
-    TEMPLATES = {
-        "container": "container.html",
-        "menu": "menu.html",
-        "text": "text.html",
-        "textgroups": "textgroups.html",
-        "index": "index.html",
-        "texts": "texts.html",
-        "version": "version.html",
-        "passage_footer": "passage_footer.html",
-        "reference_display": "reference_display.html"
-    }
     COLLECTIONS = {
         "latinLit": "Latin",
         "greekLit": "Ancient Greek",
@@ -138,10 +127,6 @@ class Nemo(object):
             self.retriever = retriever
         else:
             self.retriever = MyCapytain.retrievers.cts5.CTS(self.api_url)
-
-        self.templates = copy(Nemo.TEMPLATES)
-        if isinstance(templates, dict):
-            self.templates.update(templates)
 
         if app is not None:
             self.app = app
@@ -228,8 +213,18 @@ class Nemo(object):
         if not plugins:
             self.__plugins__ = []
 
+        self.__templates_namespaces__ = [
+            ("main", self.template_folder)
+        ]
+        if isinstance(templates, dict):
+            self.__templates_namespaces__.extend(
+                [(namespace, folder) for namespace, folder in templates.items()]
+            )
+        self.__template_loader__ = dict()
+
         if app:
             self.init_app(self.app)
+
 
     @property
     def assets(self):
@@ -484,7 +479,7 @@ class Nemo(object):
         :return: Template to use for Home page
         :rtype: {str: str}
         """
-        return {"template": self.templates["index"]}
+        return {"template": "main::index.html"}
 
     def r_collection(self, collection):
         """ Collection content browsing route function
@@ -495,7 +490,7 @@ class Nemo(object):
         :rtype: {str: Any}
         """
         return {
-            "template": self.templates["textgroups"],
+            "template": "main::textgroups.html",
             "textgroups": self.get_textgroups(collection)
         }
 
@@ -510,7 +505,7 @@ class Nemo(object):
         :rtype: {str: Any}
         """
         return {
-            "template": self.templates["texts"],
+            "template": "main::texts.html",
             "texts": self.get_texts(collection, textgroup)
         }
 
@@ -535,7 +530,7 @@ class Nemo(object):
         version, reffs = self.get_reffs(collection, textgroup, work, version)
         reffs = self.chunk(version, reffs)
         return {
-            "template": self.templates["version"],
+            "template": "main::version.html",
             "version": version,
             "reffs": reffs
         }
@@ -563,7 +558,7 @@ class Nemo(object):
         prev, next = self.getprevnext(text, Nemo.prevnext_callback_generator(text))
         urn = self.transform_urn(text.urn)
         return {
-            "template": self.templates["text"],
+            "template": "main::text.html",
             "version": edition,
             "text_passage": Markup(passage),
             "urn" : urn,
@@ -626,14 +621,17 @@ class Nemo(object):
         self.register_filters()
 
         # If we have added or overridden the default templates
-        if self.templates != Nemo.TEMPLATES:
-            folders = set([op.dirname(op.abspath(path)) for path in self.templates.values()])
-            self.loader = jinja2.ChoiceLoader([
-                self.blueprint.jinja_loader
-            ] + [
-                jinja2.FileSystemLoader(folder) for folder in folders
-            ])
-            self.blueprint.jinja_loader = self.loader
+        for namespace, directory in self.__templates_namespaces__[::-1]:
+            if namespace not in self.__template_loader__:
+                self.__template_loader__[namespace] = []
+            self.__template_loader__[namespace].append(
+                jinja2.FileSystemLoader(op.abspath(directory))
+            )
+        print(self.__templates_namespaces__)
+        self.blueprint.jinja_loader = jinja2.PrefixLoader(
+            {namespace: jinja2.ChoiceLoader(paths) for namespace, paths in self.__template_loader__.items()},
+            "::"
+        )
 
         return self.blueprint
 
@@ -670,7 +668,6 @@ class Nemo(object):
                 kwargs["texts"] = self.get_texts(kwargs["url"]["collection"], kwargs["url"]["textgroup"])
 
         kwargs["assets"] = self.assets
-        kwargs["templates"] = self.templates
         kwargs["breadcrumbs"] = self.make_breadcrumbs(**kwargs)
 
         for plugin in self.__plugins_render_views__:
@@ -792,7 +789,9 @@ class Nemo(object):
         for plugin in self.__plugins__:
             self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
-            self.templates.update(plugin.templates)
+            self.__templates_namespaces__.extend(
+                [(namespace, directory) for namespace, directory in plugin.templates.items()]
+            )
             for asset_type in self.__assets__:
                 for key, value in plugin.assets[asset_type].items():
                     self.__assets__[asset_type][key] = value

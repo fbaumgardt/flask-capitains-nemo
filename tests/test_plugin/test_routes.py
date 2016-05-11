@@ -11,7 +11,10 @@ class PluginRoute(PluginPrototype):
     ]
 
     TEMPLATES = {
-        "r_double": "tests/test_data/r_double.html"
+        "plugin_route": "tests/test_data"
+    }
+    ROUTE_TEMPLATES = {
+        "r_double": "plugin_route::r_double.html"
     }
     HAS_AUGMENT_RENDER = True
 
@@ -23,7 +26,7 @@ class PluginRoute(PluginPrototype):
                 collection, textgroup, work, visavis, passage_identifier
             ).items()
         })
-        args["template"] = self.templates["r_double"]
+        args["template"] = type(self).ROUTE_TEMPLATES["r_double"]
         return args
 
     def render(self, kwargs):
@@ -34,8 +37,11 @@ class PluginRoute(PluginPrototype):
 class PluginClearRoute(PluginRoute):
     CLEAR_ROUTES = True
 
+    ROUTE_TEMPLATES = {
+        "r_double": "plugin_cleared_route::r_double.html"
+    }
     TEMPLATES = {
-        "r_double": "tests/test_data/r_double_no_extend.html"
+        "plugin_cleared_route": "tests/test_data"
     }
 
 
@@ -104,3 +110,22 @@ class TestPluginRoutes(TestCase):
                 msg="Call to other routes in templates should fail to build"
         ):
             client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1/perseus-ger1")
+
+    def test_template_overwrite(self):
+        """ Checks that overwriting original templates works
+        """
+        class PluginTemplate(PluginPrototype):
+            TEMPLATES = {
+                "main": "tests/test_data/plugin_templates_main"
+            }
+        client = make_client(PluginTemplate())
+        query_data = str(client.get("/read/farsiLit/hafez/divan/perseus-eng1/1.1").data)
+        self.assertIn(
+            'I am A CONTAINER ! Isn\'t it sweet !', query_data,
+            "Container should have been overwritten"
+        )
+        query_data = str(client.get("/read/farsiLit/hafez").data)
+        self.assertIn(
+            'I am A CONTAINER ! Isn\'t it sweet !', query_data,
+            "Container should have been overwritten on a second page as well"
+        )

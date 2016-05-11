@@ -13,7 +13,7 @@ class PluginPrototype(object):
 
     :cvar ROUTES: Routes represents the routes to be added to the Nemo instance. They take the form of a 3-tuple such as `("/read/<collection>", "r_collection", ["GET"])`
     :type ROUTES: list
-    :cvar TEMPLATES: Dictionaries of template names and html file names
+    :cvar TEMPLATES: Dictionaries of template namespace and directory to retrieve templates in given namespace
     :type TEMPLATES: dict
     :cvar FILTERS: List of filters to register. Naming convention is f_doSomething
     :type FILTERS: list
