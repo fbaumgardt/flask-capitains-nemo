@@ -1,7 +1,8 @@
 from flask import Flask
 from flask_nemo import Nemo
 from flask_nemo.plugin import PluginPrototype
-from tests.resources import NemoResource, RequestPatch, RequestPatchChained, create_test_app
+from flask_nemo.filters import f_formatting_passage_reference
+from tests.resources import NemoResource
 
 
 class FilterPlugin(PluginPrototype):
@@ -28,7 +29,7 @@ class TestPluginFilters(NemoResource):
         self.nemo = Nemo(app=app, plugins=[plug])
         self.assertEqual(
             self.nemo.app.jinja_env.filters["formatting_passage_reference"],
-            Nemo.f_formatting_passage_reference,
+            f_formatting_passage_reference,
             "Original Nemo filters should be kept"
         )
         self.assertEqual(
@@ -56,7 +57,7 @@ class TestPluginFilters(NemoResource):
         self.nemo = Nemo(app=app, plugins=[plug, plug_noname])
         self.assertEqual(
             self.nemo.app.jinja_env.filters["formatting_passage_reference"],
-            Nemo.f_formatting_passage_reference,
+            f_formatting_passage_reference,
             "Original Nemo filters should be kept when namespacing is done"
         )
         self.assertEqual(

@@ -19,14 +19,12 @@ from MyCapytain.common.reference import URN
 from lxml import etree
 from copy import deepcopy as copy
 from pkg_resources import resource_filename
-from functools import reduce
-from collections import defaultdict, OrderedDict, Callable
+from collections import Callable, OrderedDict
 import flask_nemo._data
+import flask_nemo.filters
+from flask_nemo.chunker import default_chunker as __default_chunker__
 from flask_nemo.default import Breadcrumb
 from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
-import re
-
-__regLit__ = re.compile("^[a-z]{3}Lit$")
 
 
 class Nemo(object):
@@ -47,7 +45,7 @@ class Nemo(object):
     :type expire: int
     :param plugins: List of plugins to connect to the Nemo instance
     :type plugins: list(flask_nemo.plugin.PluginPrototype)
-    :param template_folder: Folder in which the templates can be found
+    :param template_folder: Folder in which the full set of main namespace templates can be found
     :type template_folder: str
     :param static_folder: Folder in which statics file can be found
     :type static_folder: str
@@ -75,6 +73,12 @@ class Nemo(object):
     :type statics: [str]
     :param prevent_plugin_clearing_assets: Prevent plugins to clear the static folder route
     :type prevent_plugin_clearing_assets: bool
+    :param original_breadcrumb: Use the default Breadcrumb plugin packaged with Nemo (Default: True)
+    :type original_breadcrumb: bool
+
+    :ivar assets: Dictionary of assets loaded individually
+    :ivar plugins: List of loaded plugins
+
     .. warning:: Until a C libxslt error is fixed ( https://bugzilla.gnome.org/show_bug.cgi?id=620102 ), it is not possible to use strip spaces in the xslt given to this application. See :ref:`lxml.strip-spaces`
     """
 
@@ -85,11 +89,6 @@ class Nemo(object):
         ("/read/<collection>/<textgroup>/<work>/<version>", "r_version", ["GET"]),
         ("/read/<collection>/<textgroup>/<work>/<version>/<passage_identifier>", "r_passage", ["GET"])
     ]
-    COLLECTIONS = {
-        "latinLit": "Latin",
-        "greekLit": "Ancient Greek",
-        "froLit": "Medieval French"
-    }
     FILTERS = [
         "f_active_link",
         "f_collection_i18n",
@@ -106,6 +105,7 @@ class Nemo(object):
     """ Assets dictionary model
     """
     ASSETS = copy(ASSETS_STRUCTURE)
+    default_chunker = __default_chunker__
 
     def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", cache=None, expire=3600,
                  plugins=None,
@@ -207,17 +207,20 @@ class Nemo(object):
                 self.__assets__["static"][filename] = directory
 
         self.__plugins_render_views__ = []
-        self.__plugins__ = []
+        self.__plugins__ = OrderedDict()
         if original_breadcrumb:
-            self.__plugins__.append(Breadcrumb(name="breadcrumb"))
+            self.__plugins__["nemo.breadcrumb"] = Breadcrumb(name="breadcrumb")
         if isinstance(plugins, list):
-            self.__plugins__.extend(plugins)
+            for plugin in plugins:
+                self.__plugins__[plugin.name] = plugin
 
         self.__templates_namespaces__ = [
             ("main", self.template_folder)
         ]
+        self.__instance_templates__ = []
+
         if isinstance(templates, dict):
-            self.__templates_namespaces__.extend(
+            self.__instance_templates__.extend(
                 [(namespace, folder) for namespace, folder in templates.items()]
             )
         self.__template_loader__ = dict()
@@ -299,7 +302,7 @@ class Nemo(object):
         # If we have a function, it means we return the result of the function
         if isinstance(func, Callable):
             return func(urn)
-        # If we have None, it meants we just give back the urn as string
+        # If we have None, it means we just give back the urn as string
         return urn
 
     def get_inventory(self):
@@ -623,7 +626,9 @@ class Nemo(object):
         self.register_assets()
         self.register_filters()
 
-        # If we have added or overridden the default templates
+        # We extend the loading list by the instance value
+        self.__templates_namespaces__.extend(self.__instance_templates__)
+        # We generate a template loader
         for namespace, directory in self.__templates_namespaces__[::-1]:
             if namespace not in self.__template_loader__:
                 self.__template_loader__[namespace] = []
@@ -673,7 +678,7 @@ class Nemo(object):
         kwargs["assets"] = self.assets
 
         for plugin in self.__plugins_render_views__:
-            kwargs = plugin.render(**kwargs)
+            kwargs.update(plugin.render(**kwargs))
 
         return render_template(template, **kwargs)
 
@@ -718,7 +723,7 @@ class Nemo(object):
             if not instance:
                 self.app.jinja_env.filters[
                     _filter.replace("f_", "")
-                ] = getattr(self.__class__, _filter)
+                ] = getattr(flask_nemo.filters, _filter)
             else:
                 self.app.jinja_env.filters[
                     _filter.replace("f_", "")
@@ -727,18 +732,17 @@ class Nemo(object):
     def register_plugins(self):
         """ Register plugins in Nemo instance
         """
-
-        if len([plugin for plugin in self.__plugins__ if plugin.clear_routes]) > 0:  # Clear current routes
+        if len([plugin for plugin in self.__plugins__.values() if plugin.clear_routes]) > 0:  # Clear current routes
             self._urls = list()
 
-        clear_assets = [plugin for plugin in self.__plugins__ if plugin.clear_assets]
+        clear_assets = [plugin for plugin in self.__plugins__.values() if plugin.clear_assets]
         if len(clear_assets) > 0 and not self.prevent_plugin_clearing_assets:  # Clear current Assets
             self.__assets__ = copy(type(self).ASSETS)
             static_path = [plugin.static_folder for plugin in clear_assets if plugin.static_folder]
             if len(static_path) > 0:
                 self.static_folder = static_path[-1]
 
-        for plugin in self.__plugins__:
+        for plugin in self.__plugins__.values():
             self._urls.extend([(url, function, methods, plugin) for url, function, methods in plugin.routes])
             self._filters.extend([(filt, plugin) for filt in plugin.filters])
             self.__templates_namespaces__.extend(
@@ -793,267 +797,6 @@ class Nemo(object):
         :rtype: bool
         """
         return identifier in kwargs["url"] and collection not in kwargs
-
-    @staticmethod
-    def f_order_author(textgroups, lang="eng"):
-        """ Order a list of textgroups
-
-        :param textgroups: list of textgroups to be sorted
-        :param lang: Language to display
-        :return: Sorted list
-        """
-        __textgroups__ = {
-            tg.metadata["groupname"][lang] or str(tg.urn): tg
-            for tg in textgroups
-        }
-
-        return [
-           __textgroups__[key]
-           for key in sorted(list(__textgroups__.keys()))
-       ]
-
-    @staticmethod
-    def f_active_link(string, url):
-        """ Check if current string is in the list of names
-
-        :param string: String to check for in url
-        :return: CSS class "active" if valid
-        :rtype: str
-        """
-        if string in url.values():
-            return "active"
-        return ""
-
-    @staticmethod
-    def f_collection_i18n(string, lang="eng"):
-        """ Return a i18n human readable version of a CTS domain such as latinLit
-
-        :param string: CTS Domain identifier
-        :type string: str
-        :return: Human i18n readable version of the CTS Domain
-        :rtype: str
-        """
-        if string in Nemo.COLLECTIONS:
-            return Nemo.COLLECTIONS[string]
-        elif __regLit__.match(string):
-            lg = string[0:2]
-            if lg in flask_nemo._data.ISOCODES and lang in flask_nemo._data.ISOCODES[lg]:
-                return flask_nemo._data.ISOCODES[lg][lang]
-        return string
-
-    @staticmethod
-    def f_formatting_passage_reference(string):
-        """ Get the first part only of a two parts reference
-
-        :param string: A urn reference part
-        :type string: str
-        :return: First part only of the two parts reference
-        :rtype: str
-        """
-        return string.split("-")[0]
-
-    @staticmethod
-    def f_i18n_iso(isocode, lang="eng"):
-        """ Replace isocode by its language equivalent
-
-        :param isocode: Three character long language code
-        :param lang: Lang in which to return the language name
-        :return: Full Text Language Name
-        """
-        if lang not in flask_nemo._data.AVAILABLE_TRANSLATIONS:
-            lang = "eng"
-
-        try:
-            return flask_nemo._data.ISOCODES[isocode][lang]
-        except KeyError:
-            return "Unknown"
-
-    @staticmethod
-    def f_group_texts(versions_list):
-        """ Takes a list of versions and regroup them by work identifier
-
-        :param versions_list: List of text versions
-        :type versions_list: [Text]
-        :return: List of texts grouped by work
-        :rtype: [(Work, [Text])]
-        """
-        works = {}
-        texts = defaultdict(list)
-        for version in versions_list:
-            if version.urn.work not in works:
-                works[version.urn.work] = version.parents[0]
-            texts[version.urn.work].append(version)
-        return [
-            (works[index], texts[index])
-            for index in works
-        ]
-
-    @staticmethod
-    def f_order_text_edition_translation(versions_list):
-        """ Takes a list of versions and put translations after editions
-
-        :param versions_list: List of text versions
-        :type versions_list: [Text]
-        :return: List where first members will be editions
-        :rtype: [Text]
-        """
-        translations = []
-        editions = []
-        for version in versions_list:
-            if version.subtype == "Translation":
-                translations.append(version)
-            else:
-                editions.append(version)
-        return editions + translations
-
-    @staticmethod
-    def f_hierarchical_passages(reffs, version):
-        """ A function to construct a hierarchical dictionary representing the different citation layers of a text
-
-        :param reffs: passage references with human-readable equivalent
-        :type reffs: [(str, str)]
-        :param version: text from which the reference comes
-        :type version: MyCapytain.resources.inventory.Text
-        :return: nested dictionary representing where keys represent the names of the levels and the final values represent the passage reference
-        :rtype: OrderedDict
-        """
-        d = OrderedDict()
-        levels = [x for x in version.citation]
-        for cit, name in reffs:
-            ref = cit.split('-')[0]
-            levs = ['%{}|{}%'.format(levels[i].name, v) for i, v in enumerate(ref.split('.'))]
-            _getFromDict(d, levs[:-1])[name] = cit
-        return d
-
-    @staticmethod
-    def f_is_str(value):
-        """ Check if object is a string
-
-        :param value: object to check against
-        :return: Return if value is a string
-        """
-        return isinstance(value, str)
-
-    @staticmethod
-    def f_i18n_citation_type(string, lang="eng"):
-        """ Take a string of form %citation_type|passage% and format it for human
-
-        :param string: String of formation %citation_type|passage%
-        :param lang: Language to translate to
-        :return: Human Readable string
-
-        .. todo :: use i18n tools and provide real i18n
-        """
-        s = " ".join(string.strip("%").split("|"))
-        return s.capitalize()
-
-    @staticmethod
-    def default_chunker(text, getreffs):
-        """ This is the default chunker which will resolve the reference giving a callback (getreffs) and a text object with its metadata
-
-        :param text: Text Object representing either an edition or a translation
-        :type text: MyCapytains.resources.inventory.Text
-        :param getreffs: callback function which retrieves a list of references
-        :type getreffs: function
-
-        :return: List of urn references with their human readable version
-        :rtype: [(str, str)]
-        """
-        level = len(text.citation)
-        return [tuple([reff.split(":")[-1]]*2) for reff in getreffs(level=level)]
-
-    @staticmethod
-    def scheme_chunker(text, getreffs):
-        """ This is the scheme chunker which will resolve the reference giving a callback (getreffs) and a text object with its metadata
-
-        :param text: Text Object representing either an edition or a translation
-        :type text: MyCapytains.resources.inventory.Text
-        :param getreffs: callback function which retrieves a list of references
-        :type getreffs: function
-
-        :return: List of urn references with their human readable version
-        :rtype: [(str, str)]
-        """
-        level = len(text.citation)
-        types = [citation.name for citation in text.citation]
-        if types == ["book", "poem", "line"]:
-            level = 2
-        elif types == ["book", "line"]:
-            return Nemo.line_chunker(text, getreffs)
-        return [tuple([reff.split(":")[-1]]*2) for reff in getreffs(level=level)]
-
-    @staticmethod
-    def line_chunker(text, getreffs, lines=30):
-        """ Groups line reference together
-
-        :param text: Text object
-        :type text: MyCapytains.resources.text.api
-        :param getreffs: Callback function to retrieve text
-        :type getreffs: function(level)
-        :param lines: Number of lines to use by group
-        :type lines: int
-        :return: List of grouped urn references with their human readable version
-        :rtype: [(str, str)]
-        """
-        level = len(text.citation)
-        source_reffs = [reff.split(":")[-1] for reff in getreffs(level=level)]
-        reffs = []
-        i = 0
-        while i + lines - 1 < len(source_reffs):
-            reffs.append(tuple([source_reffs[i]+"-"+source_reffs[i+lines-1], source_reffs[i]]))
-            i += lines
-        if i < len(source_reffs):
-            reffs.append(tuple([source_reffs[i]+"-"+source_reffs[len(source_reffs)-1], source_reffs[i]]))
-        return reffs
-
-    @staticmethod
-    def level_chunker(text, getValidReff, level=1):
-        """ Chunk a text at the passage level
-
-        :param text: Text object
-        :type text: MyCapytains.resources.text.api
-        :param getreffs: Callback function to retrieve text
-        :type getreffs: function(level)
-        :return: List of urn references with their human readable version
-        :rtype: [(str, str)]
-        """
-        references = getValidReff(level=level)
-        return [(ref.split(":")[-1], ref.split(":")[-1]) for ref in references]
-
-    @staticmethod
-    def level_grouper(text, getValidReff, level=None, groupby=20):
-        """ Alternative to level_chunker: groups levels together at the latest level
-
-        :param text: Text object
-        :param getValidReff: GetValidReff query callback
-        :param level: Level of citation to retrieve
-        :param groupby: Number of level to groupby
-        :return: Automatically curated references
-        """
-        if level is None or level > len(text.citation):
-            level = len(text.citation)
-
-        references = [ref.split(":")[-1] for ref in getValidReff(level=level)]
-        _refs = OrderedDict()
-
-        for key in references:
-            k = ".".join(key.split(".")[:level-1])
-            if k not in _refs:
-                _refs[k] = []
-            _refs[k].append(key)
-            del k
-
-        return [
-            (
-                _join_or_single(ref[0], ref[-1]),
-                _join_or_single(ref[0], ref[-1])
-            )
-            for sublist in _refs.values()
-            for ref in [
-                sublist[i:i+groupby]
-                for i in range(0, len(sublist), groupby)
-            ]
-        ]
 
     @staticmethod
     def default_prevnext(passage, callback):
@@ -1132,51 +875,14 @@ class Nemo(object):
         ][part_of_urn]).lower()) == query.lower().strip()
 
 
-def _getFromDict(dataDict, keyList):
-    """Retrieves and creates when necessary a dictionary in nested dictionaries
-
-    :param dataDict: a dictionary
-    :param keyList: list of keys
-    :return: target dictionary
-    """
-    return reduce(_create_hierarchy, keyList, dataDict)
-
-
-def _create_hierarchy(hierarchy, level):
-    """Create an OrderedDict
-
-    :param hierarchy: a dictionary
-    :param level: single key
-    :return: deeper dictionary
-    """
-    if level not in hierarchy:
-        hierarchy[level] = OrderedDict()
-    return hierarchy[level]
-
-
-def _join_or_single(start, end):
-    """
-
-    :param start:
-    :param end:
-    :return:
-    """
-    if start == end:
-        return start
-    else:
-        return "{}-{}".format(
-            start,
-            end
-        )
-
-
 def _plugin_endpoint_rename(fn_name, instance):
     """ Rename endpoint function name to avoid conflict when namespacing is set to true
 
-    :param fn_name:
-    :param instance:
-    :return:
+    :param fn_name: Name of the route function
+    :param instance: Instance bound to the function
+    :return: Name of the new namespaced function name
     """
+
     if instance and instance.namespaced:
         fn_name = "r_{0}_{1}".format(instance.name, fn_name[2:])
     return fn_name
@@ -1205,7 +911,7 @@ def cmd():
         app = Flask(
             __name__
         )
-        # We set up Nemo
+        # We set up Nemo
         nemo = Nemo(
             app=app,
             name="nemo",

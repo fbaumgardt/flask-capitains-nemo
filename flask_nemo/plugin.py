@@ -7,35 +7,53 @@ from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
 class PluginPrototype(object):
     """ Prototype for Nemo Plugins
 
-    :param name: Name of the instance of the plugins. Defaults to the class name
-    :param nemo: Instance of Nemo
-    :param namespacing: Automatically overwrites the route
+    :param name: Name of the instance of the plugins. Defaults to the class name (Default : Plugin's class name)
+    :param nemo: Instance of Nemo (Can be set up later through .register_nemo())
+    :param namespacing: Automatically overwrites the route of the Nemo instance using the plugin (Default : False)
 
     :cvar ROUTES: Routes represents the routes to be added to the Nemo instance. They take the form of a 3-tuple such as `("/read/<collection>", "r_collection", ["GET"])`
     :type ROUTES: list
-    :cvar TEMPLATES: Dictionaries of template namespace and directory to retrieve templates in given namespace
+    :cvar TEMPLATES: Dictionaries of template namespaces and directory to retrieve templates in given namespace
     :type TEMPLATES: dict
     :cvar FILTERS: List of filters to register. Naming convention is f_doSomething
     :type FILTERS: list
-    :cvar AUGMENT_RENDER: Enables post-processing in view rendering function Nemo().render(template, **kwargs)
-    :type AUGMENT_RENDER: bool
+    :cvar HAS_AUGMENT_RENDER: Enables post-processing in view rendering function Nemo().render(template, **kwargs)
+    :type HAS_AUGMENT_RENDER: bool
     :cvar CLEAR_ROUTES: Removes original nemo routes
     :type CLEAR_ROUTES: bool
     :cvar CLEAR_ASSETS: Removes original nemo secondary assets
     :type CLEAR_ASSETS: bool
-
-    :cvar STATIC_FOLDER: Change original STATIC_FOLDER
-    :cvar TEMPLATE_FOLDER: Change original TEMPLATE_FOLDER
+    :cvar STATIC_FOLDER: Overwrite Nemo default statics folder
+    :type STATIC_FOLDER: str
     :cvar CSS: List of CSS resources to link in and give access to if local
+    :type CSS: [css]
     :cvar JS: List of JS resources to link in and give access to if local
-    :cvar STATIC: List of CSS resources to link in and give access to if local
+    :type JS: [str]
+    :cvar STATIC: List of static resources (images for example) to give access to
+    :type STATIC: [str]
 
-    :ivar templates: Instance-specific dictionary of templates
-    :ivar routes: Instance-specific list of routes
-    :ivar filters: Instance-specific list of filters
-    :ivar augment: Instance-specific status of presence of post-processing function (General view information)
+    :ivar assets: Dictionary of assets, with each key (css, js and static) being list of resources
+    :type assets: dict(str:[str])
+    :ivar augment: If true, means that the plugin has a render method which needs to be called upon rendering the view
+    :type augment: bool
+    :ivar clear_routes: If true, means that the plugin requires Nemo original routes to be removed
+    :type clear_routes: bool
+    :ivar clear_assets: If true, means that the plugin required Nemo original assets to be removed
+    :type clear_assets: bool
+    :ivar name: Name of the plugin instance
+    :type name: str
+    :ivar static_folder: Path to the plugin own static_folder to be used instead of the Nemo default one
+    :type static_folder: str
+    :ivar namespaced: Indicate if the plugin is namespaced or not
+    :type namespaced: bool
+    :ivar routes: List of routes where the first member is a flask URL template, the second a method name, and the third a list of accepted Methods
+    :type routes: [(str, str, [str])]
+    :ivar filters: List of filters method names to be registered in Nemo
+    :type filters: [str]
+    :ivar templates: Dictionary of namespace and target directory to resolve templates name
+    :type templates: {str:str}
     :ivar nemo: Nemo instance
-    :type nemo: flask_nemo.Nemo
+    :type nemo: flask_ext.Nemo
 
     :Example:
     .. code-block:: python
@@ -127,7 +145,6 @@ class PluginPrototype(object):
     @property
     def static_folder(self):
         return self.__static_folder__
-
 
     @property
     def namespaced(self):

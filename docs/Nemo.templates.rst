@@ -41,8 +41,13 @@ Template choice behaviour in Nemo
     :alt: Nemo Templates Decision Diagram
 
 
+Nemo Default Templates
+######################
+
+The following tables gives informations about the variables sent to each templates.
+
 Variables shared across templates
-#################################
+*********************************
 
 +-----------------+----------------------------------------------------------+
 | Variable Name   | Details                                                  |
@@ -61,22 +66,22 @@ Variables shared across templates
 +-----------------+----------------------------------------------------------+
 
 main::index.html
-################
+****************
 
 Only `Variables shared across templates`_
 
 main::menu.html
-###############
+***************
 
 Only `Variables shared across templates`_
 
 main::breadcrumb.html
-###############
+***************
 
 Only `Variables shared across templates`_
 
 main::textgroups.html
-#####################
+*********************
 
 See `r_collection` in :ref:`Nemo.api.r_collection`
 
@@ -87,7 +92,7 @@ See `r_collection` in :ref:`Nemo.api.r_collection`
 +-----------------+----------------------------------------------------------+
 
 main::texts.html
-################
+****************
 
 main::See `r_texts` in :ref:`Nemo.api.r_texts`
 
@@ -98,7 +103,7 @@ main::See `r_texts` in :ref:`Nemo.api.r_texts`
 +-----------------+----------------------------------------------------------+
 
 main::version.html
-##################
+******************
 
 See `r_version` in :ref:`Nemo.api.r_version`
 
@@ -111,7 +116,7 @@ See `r_version` in :ref:`Nemo.api.r_version`
 +-----------------+-----------------------------------------------------------------------------------------+
 
 main::text.html
-###############
+***************
 
 
 See `r_passage` in :ref:`Nemo.api.r_passage`
@@ -131,7 +136,7 @@ See `r_passage` in :ref:`Nemo.api.r_passage`
 +-----------------+----------------------------------------------------------------------------------------+
 
 main::passage_footer.html
-###############
+***************
 
 
 See `r_passage` in :ref:`Nemo.api.r_passage`

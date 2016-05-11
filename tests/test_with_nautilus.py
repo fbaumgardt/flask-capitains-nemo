@@ -6,6 +6,7 @@
 from unittest import TestCase
 from .resources import NautilusDummy
 from flask_nemo import Nemo
+from flask_nemo.chunker import level_grouper
 from flask import Flask, jsonify
 
 
@@ -19,7 +20,7 @@ class NemoTestRoutes(TestCase):
             app=app,
             base_url="",
             retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            chunker={"default": lambda x, y: level_grouper(x, y, groupby=30)},
             css=[
                 "./tests/test_data/empty.css",
                 "//foo.bar/test.css",
@@ -101,7 +102,7 @@ class NemoTestRoutes(TestCase):
             app=app,
             base_url="",
             retriever=NautilusDummy,
-            chunker={"default": lambda x, y: Nemo.level_grouper(x, y, groupby=30)},
+            chunker={"default": lambda x, y: level_grouper(x, y, groupby=30)},
             static_folder="tests/test_data/assets"
         )
 

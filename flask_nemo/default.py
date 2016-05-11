@@ -19,7 +19,7 @@ class Breadcrumb(PluginPrototype):
         :param kwargs: dictionary of named arguments used to construct the view
         :type kwargs: dict
         :return: List of dict items the view can use to construct the link.
-        :rtype: list({ "link": str, "title", str, "args", dict})
+        :rtype: {str: list({ "link": str, "title", str, "args", dict})}
         """
         breadcrumbs = []
         # this is the list of items we want to accumulate in the breadcrumb trail.
@@ -69,6 +69,4 @@ class Breadcrumb(PluginPrototype):
         if len(breadcrumbs) > 0:
             breadcrumbs[-1]["link"] = None
 
-        kwargs["breadcrumbs"] = breadcrumbs
-
-        return kwargs
+        return {"breadcrumbs": breadcrumbs}
