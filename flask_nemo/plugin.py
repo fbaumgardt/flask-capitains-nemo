@@ -8,8 +8,7 @@ class PluginPrototype(object):
     """ Prototype for Nemo Plugins
 
     :param name: Name of the instance of the plugins. Defaults to the class name (Default : Plugin's class name)
-    :param nemo: Instance of Nemo (Can be set up later through .register_nemo())
-    :param namespacing: Automatically overwrites the route of the Nemo instance using the plugin (Default : False)
+    :param namespacing: Add namespace to route to avoid overwriting (Default : False)
 
     :cvar ROUTES: Routes represents the routes to be added to the Nemo instance. They take the form of a 3-tuple such as `("/read/<collection>", "r_collection", ["GET"])`
     :type ROUTES: list
@@ -77,7 +76,7 @@ class PluginPrototype(object):
     JS = []
     STATIC_FOLDER = None
 
-    def __init__(self, name=None, nemo=None, namespacing=False, *args, **kwargs):
+    def __init__(self, name=None, namespacing=False, *args, **kwargs):
         self.__nemo__ = None
         self.__instance_name__ = name
         if not name:
@@ -100,9 +99,6 @@ class PluginPrototype(object):
 
             for i in range(0, len(self.__filters__)):
                 self.__filters__[i] = "f_{}_{}".format(self.name, self.__filters__[i][2:])
-
-        if nemo:
-            self.register_nemo(nemo)
 
         self.__assets__ = copy(ASSETS_STRUCTURE)
         for css in type(self).CSS:

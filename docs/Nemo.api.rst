@@ -106,6 +106,7 @@ PrevNexter
 Plugin
 ######
 
+.. _pluginInit:
 .. autoclass:: flask.ext.nemo.plugin.PluginPrototype
 .. automethod:: flask.ext.nemo.plugin.PluginPrototype.render
 
@@ -115,7 +116,7 @@ Default Plugins
 
 .. autoclass:: flask.ext.nemo.default.Breadcrumb
 
-.. _plugin-render:
+.. _pluginRender:
 .. automethod:: flask.ext.nemo.default.Breadcrumb.render
 
 Common

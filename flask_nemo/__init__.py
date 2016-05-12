@@ -731,6 +731,15 @@ class Nemo(object):
 
     def register_plugins(self):
         """ Register plugins in Nemo instance
+
+        - Clear routes first if asked by one plugin
+        - Clear assets if asked by one plugin and replace by the last plugin registered static_folder
+        - Register each plugin
+            - Append plugin routes to registered routes
+            - Append plugin filters to registered filters
+            - Append templates directory to given namespaces
+            - Append assets (CSS, JS, statics) to given resources 
+            - Append render view (if exists) to Nemo.render stack
         """
         if len([plugin for plugin in self.__plugins__.values() if plugin.clear_routes]) > 0:  # Clear current routes
             self._urls = list()

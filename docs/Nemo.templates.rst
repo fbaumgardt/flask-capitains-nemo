@@ -37,6 +37,8 @@ You can add namespace to Nemo by using the templates parameter on initiation, bu
 Template choice behaviour in Nemo
 *********************************
 
+.. _templateOrder:
+
 .. image:: _static/images/nemo.templates.order.png
     :alt: Nemo Templates Decision Diagram
 
