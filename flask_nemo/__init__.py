@@ -22,9 +22,11 @@ from pkg_resources import resource_filename
 from collections import Callable, OrderedDict
 import flask_nemo._data
 import flask_nemo.filters
-from flask_nemo.chunker import default_chunker as __default_chunker__, level_grouper as __level_grouper__
+from flask_nemo.chunker import default_chunker as __default_chunker__, level_grouper as __level_grouper__,\
+    scheme_chunker as __scheme_chunker__
 from flask_nemo.plugins.default import Breadcrumb
 from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
+from werkzeug.contrib.cache import NullCache
 
 
 class Nemo(object):
@@ -136,7 +138,11 @@ class Nemo(object):
         if self.api_inventory:
             self.retriever.inventory = self.api_inventory
 
-        self.cache = None
+        if cache:
+            self.cache = cache
+        else:
+            self.cache = NullCache()
+
         self.prevent_plugin_clearing_assets = prevent_plugin_clearing_assets
 
         if template_folder:
@@ -452,12 +458,28 @@ class Nemo(object):
         :return: Text with its metadata, callback function to retrieve validreffs
         :rtype: (MyCapytains.resources.texts.api.Text, lambda: [str])
         """
-        text = self.get_text(collection, textgroup, work, version)
-        reffs = MyCapytain.resources.texts.api.Text(
-            "urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version),
-            self.retriever,
-            citation=text.citation
-        )
+        text_cache_key = "text_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
+        reffs_cache_key = "reffs_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
+        cached = self.cache.get(text_cache_key)
+        if cached:
+            text = cached
+            print("text cached")
+        else:
+            print("text_uncached")
+            text = self.get_text(collection, textgroup, work, version)
+            self.cache.add(text_cache_key,text)
+        cached = self.cache.get(reffs_cache_key)
+        if cached:
+            reffs = cached
+            print("reffs cached")
+        else:
+            print("reffs uncached")
+            reffs = MyCapytain.resources.texts.api.Text(
+                "urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version),
+                self.retriever,
+                citation=text.citation
+            )
+            self.cache.add(reffs_cache_key,reffs)
         return text, lambda level: reffs.getValidReff(level=level)
 
     def get_passage(self, collection, textgroup, work, version, passage_identifier):
@@ -538,8 +560,18 @@ class Nemo(object):
             "reffs": [str]
             }
         """
+
+        cache_key = "chunks_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
         version, reffs = self.get_reffs(collection, textgroup, work, version)
-        reffs = self.chunk(version, reffs)
+        cached = self.cache.get(cache_key)
+        if cached:
+            reffs = cached
+            print("chunked cached")
+        else:
+            print("chunked uncached")
+            reffs = self.chunk(version, reffs)
+            self.cache.add(cache_key,reffs)
+        print("done")
         return {
             "template": "main::version.html",
             "version": version,
@@ -908,7 +940,7 @@ def cmd():
     parser = argparse.ArgumentParser(description='Capitains Nemo CTS UI')
     parser.add_argument('endpoint', metavar='endpoint', type=str,
                        help='CTS API Endpoint')
-    parser.add_argument('--port', type=int, default=8000,
+    parser.add_argument('--por', type=int, default=8000,
                        help='Port to use for the HTTP Server')
     parser.add_argument('--host', type=str, default="127.0.0.1",
                        help='Host to use for the HTTP Server')
@@ -934,7 +966,10 @@ def cmd():
             css=args.css,
             inventory=args.inventory,
             api_url=args.endpoint,
-            chunker={"default": lambda x, y: __level_grouper__(x, y, groupby=args.groupby)}
+            chunker={
+                "default": lambda x, y: __level_grouper__(x, y, groupby=args.groupby),
+                "urn:cts:pdlrefwk:viaf88890045.003.perseus-eng1": __scheme_chunker__
+                     }
         )
 
         # We run the app
