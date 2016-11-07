@@ -713,8 +713,6 @@ class Nemo(object):
         kwargs["assets"] = self.assets
         kwargs["template"] = template
         kwargs["cache_key"] = "%s" % kwargs["url"].values()
-        print(kwargs["cache_key"])
-        # ["collection"]+kwargs["url"]["textgroup"]+kwargs["url"]["work"]+kwargs["url"]["version"]
         for plugin in self.__plugins_render_views__:
             kwargs.update(plugin.render(**kwargs))
 
