@@ -41,5 +41,7 @@
 {% endmacro %}
 
 {% block article %}
-    {{ show_passage(text_passage, navigation=nav(), header=header_passage(), footer=default_footer()) }}
+    {% cache 300, cache_key %}
+        {{ show_passage(text_passage, navigation=nav(), header=header_passage(), footer=default_footer()) }}
+    {% endcache %}
 {% endblock %}

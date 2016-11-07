@@ -5,7 +5,9 @@
 {% block article %}
 <article class="nav reffs">
     <section class="row">
+        {% cache 300, cache_key %}
             {{ reference_display.hierarchical_dispatcher(version, reffs) }}
+        {% endcache %}
     </section>
 </article>
 {% endblock %}

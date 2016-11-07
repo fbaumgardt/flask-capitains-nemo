@@ -3,11 +3,13 @@
 {% block article %}
 <article class="nav">
     <section class="row">
+        {% cache 300, cache_key %}
         <nav>
             {% for textgroup in textgroups|order_author %}
                 <div><a href="{{url_for('.r_texts', collection=textgroup.urn.namespace, textgroup=textgroup.urn.textgroup)}}">{{ textgroup.metadata['groupname'][lang] }}</a></div>
             {% endfor %}
         </nav>
+        {% endcache %}
     </section>
 </article>
 {% endblock %}

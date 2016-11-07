@@ -4,6 +4,7 @@
 <article>
     <head><h1>Texts</h1></head>
     <section class="textlist">
+        {% cache 300, cache_key %}
         <ul class="row list-unstyled">
             {% for title, texts in texts|group_texts %}
                 <li>
@@ -16,6 +17,7 @@
                 </li>
             {% endfor %}
         </ul>
+        {% endcache %}
     </section>
 </article>
 {% endblock %}
