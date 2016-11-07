@@ -26,7 +26,8 @@ from flask_nemo.chunker import default_chunker as __default_chunker__, level_gro
     scheme_chunker as __scheme_chunker__
 from flask_nemo.plugins.default import Breadcrumb
 from flask_nemo.common import resource_qualifier, ASSETS_STRUCTURE
-from werkzeug.contrib.cache import NullCache
+from flask_caching import Cache
+from time import strftime
 
 
 class Nemo(object):
@@ -109,8 +110,9 @@ class Nemo(object):
     """
     ASSETS = copy(ASSETS_STRUCTURE)
     default_chunker = __default_chunker__
+    cache = Cache(config={'CACHE_TYPE': 'simple'})
 
-    def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", cache=None, expire=3600,
+    def __init__(self, name=None, app=None, api_url="/", retriever=None, base_url="/nemo", expire=3600,
                  plugins=None,
                  template_folder=None, static_folder=None, static_url_path=None,
                  urls=None, inventory=None, transform=None, urntransform=None, chunker=None, prevnext=None,
@@ -118,6 +120,7 @@ class Nemo(object):
                  prevent_plugin_clearing_assets=False,
                  original_breadcrumb=True):
 
+        self.cache.init_app(app)
         self.name = __name__
         if name:
             self.name = name
@@ -137,11 +140,6 @@ class Nemo(object):
         self.api_inventory = inventory
         if self.api_inventory:
             self.retriever.inventory = self.api_inventory
-
-        if cache:
-            self.cache = cache
-        else:
-            self.cache = NullCache()
 
         self.prevent_plugin_clearing_assets = prevent_plugin_clearing_assets
 
@@ -259,6 +257,10 @@ class Nemo(object):
 
         self.register()
 
+    def make_cache_key(self, *args, **kwargs):
+        return self.__name__+str(args[1:])+str(kwargs)
+
+    @cache.memoize(300)
     def transform(self, work, xml, urn):
         """ Transform input according to potentiallyregistered XSLT
 
@@ -294,6 +296,7 @@ class Nemo(object):
         # If we have None, it meants we just give back the xml
         elif func is None:
             return etree.tostring(xml, encoding=str)
+    transform.make_cache_key = make_cache_key
 
     def transform_urn(self, urn):
         """ Transform urn according to configurable function
@@ -316,6 +319,7 @@ class Nemo(object):
         # If we have None, it means we just give back the urn as string
         return urn
 
+    @cache.memoize(300)
     def get_inventory(self):
         """ Request the api endpoint to retrieve information about the inventory
 
@@ -329,7 +333,9 @@ class Nemo(object):
         inventory = MyCapytain.resources.inventory.TextInventory(resource=reply)
         self._inventory = inventory
         return self._inventory
+    get_inventory.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_collections(self):
         """ Filter inventory and make a list of available collections
 
@@ -341,7 +347,9 @@ class Nemo(object):
             [inventory.textgroups[textgroup].urn.namespace for textgroup in inventory.textgroups]
         )
         return urns
+    get_collections.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_textgroups(self, collection_urn=None):
         """ Retrieve textgroups
 
@@ -354,7 +362,9 @@ class Nemo(object):
         if collection_urn is not None:
             return Nemo.map_urns(inventory, collection_urn, 2, "textgroups")
         return list(inventory.textgroups.values())
+    get_textgroups.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_works(self, collection_urn=None, textgroup_urn=None):
         """ Retrieve works
 
@@ -377,7 +387,9 @@ class Nemo(object):
             return [work for textgroup in self.get_inventory().textgroups.values() for work in textgroup.works.values()]
         else:
             raise ValueError("Get_Work takes either two None value or two set up value")
+    get_works.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_texts(self, collection_urn=None, textgroup_urn=None, work_urn=None):
         """ Retrieve texts
 
@@ -413,7 +425,9 @@ class Nemo(object):
             ]
         else:
             raise ValueError("Get_Work takes either two None value or two set up value")
+    get_texts.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_text(self, collection_urn, textgroup_urn, work_urn, version_urn):
         """ Retrieve one version of a Text
 
@@ -440,7 +454,9 @@ class Nemo(object):
         if len(texts) == 1:
             return texts[0]
         abort(404)
+    get_text.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_reffs(self, collection, textgroup, work, version):
         """ Get the setup for valid reffs.
 
@@ -458,30 +474,21 @@ class Nemo(object):
         :return: Text with its metadata, callback function to retrieve validreffs
         :rtype: (MyCapytains.resources.texts.api.Text, lambda: [str])
         """
-        text_cache_key = "text_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
-        reffs_cache_key = "reffs_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
-        cached = self.cache.get(text_cache_key)
-        if cached:
-            text = cached
-            print("text cached")
-        else:
-            print("text_uncached")
-            text = self.get_text(collection, textgroup, work, version)
-            self.cache.add(text_cache_key,text)
-        cached = self.cache.get(reffs_cache_key)
-        if cached:
-            reffs = cached
-            print("reffs cached")
-        else:
-            print("reffs uncached")
-            reffs = MyCapytain.resources.texts.api.Text(
-                "urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version),
-                self.retriever,
-                citation=text.citation
-            )
-            self.cache.add(reffs_cache_key,reffs)
+        text = self.get_text(
+            collection,
+            textgroup,
+            work,
+            version
+        )
+        reffs = MyCapytain.resources.texts.api.Text(
+            "urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version),
+            self.retriever,
+            citation=text.citation
+        )
         return text, lambda level: reffs.getValidReff(level=level)
+    get_reffs.make_cache_key = make_cache_key
 
+    @cache.memoize(300)
     def get_passage(self, collection, textgroup, work, version, passage_identifier):
         """ Retrieve the passage identified by the parameters
 
@@ -505,6 +512,7 @@ class Nemo(object):
         )
         passage = text.getPassage(passage_identifier)
         return passage
+    get_passage.make_cache_key = make_cache_key
 
     def r_index(self):
         """ Homepage route function
@@ -561,17 +569,8 @@ class Nemo(object):
             }
         """
 
-        cache_key = "chunks_urn:cts:{0}:{1}.{2}.{3}".format(collection, textgroup, work, version)
         version, reffs = self.get_reffs(collection, textgroup, work, version)
-        cached = self.cache.get(cache_key)
-        if cached:
-            reffs = cached
-            print("chunked cached")
-        else:
-            print("chunked uncached")
-            reffs = self.chunk(version, reffs)
-            self.cache.add(cache_key,reffs)
-        print("done")
+        reffs = self.chunk(version, reffs)
         return {
             "template": "main::version.html",
             "version": version,
@@ -702,7 +701,6 @@ class Nemo(object):
         :return: Http Response with rendered template
         :rtype: flask.Response
         """
-
         kwargs["collections"] = self.get_collections()
         kwargs["lang"] = "eng"
 
@@ -714,11 +712,14 @@ class Nemo(object):
 
         kwargs["assets"] = self.assets
         kwargs["template"] = template
-
+        kwargs["cache_key"] = "%s" % kwargs["url"].values()
+        print(kwargs["cache_key"])
+        # ["collection"]+kwargs["url"]["textgroup"]+kwargs["url"]["work"]+kwargs["url"]["version"]
         for plugin in self.__plugins_render_views__:
             kwargs.update(plugin.render(**kwargs))
 
-        return render_template(kwargs["template"], **kwargs)
+        result = render_template(kwargs["template"], **kwargs)
+        return result
 
     def route(self, fn, **kwargs):
         """ Route helper : apply fn function but keep the calling object, *ie* kwargs, for other functions
@@ -802,6 +803,7 @@ class Nemo(object):
                 self.__plugins_render_views__.append(plugin)
             plugin.register_nemo(self)
 
+    @cache.memoize(300)
     def chunk(self, text, reffs):
         """ Handle a list of references depending on the text identifier using the chunker dictionary.
 
